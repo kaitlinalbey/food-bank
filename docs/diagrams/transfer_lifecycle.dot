@@ -1,0 +1,21 @@
+// Inventory exchange (transfer) lifecycle. States match TRANSITIONS in services/transfers.py.
+// Edit this file, then regenerate the SVG and PNG (see docs/DIAGRAMS.md).
+digraph TransferStates {
+ graph [rankdir=LR,bgcolor="white",fontname="Arial",fontsize=14,label="Inventory exchange lifecycle (who acts, and what happens to stock)",labelloc=t,pad="0.3",nodesep="0.6",ranksep="0.9"];
+ node [shape=box,style="rounded,filled",fontname="Arial",fontsize=11,fillcolor="#eaf2fb",color="#94a3b8",margin="0.2,0.15"];
+ edge [fontname="Arial",fontsize=10,color="#64748b",arrowsize=.8];
+ start [shape=point,width=.15,color="#475569"];
+ pending [label="pending\nno stock moves yet"];
+ approved [label="approved\nsupplier stock reserved",fillcolor="#fce9bf",color="#c8a452"];
+ transit [label="in_transit\nsupplier stock deducted\n(lots copied to shipment_lots)",fillcolor="#deebf7"];
+ received [label="received\nrequester stock credited",fillcolor="#dbf0e0",color="#66a179"];
+ declined [label="declined",fillcolor="#f9e1e1",color="#cf9b9b"];
+ canceled [label="canceled\nreservation released",fillcolor="#f9e1e1",color="#cf9b9b"];
+ start -> pending [label="requester: POST /api/exchanges\n(request_key prevents duplicates)"];
+ pending -> approved [label="supplier: approve\n(re-checks surplus and shortage)"];
+ pending -> declined [label="supplier: decline"];
+ pending -> canceled [label="requester: cancel"];
+ approved -> canceled [label="requester: cancel"];
+ approved -> transit [label="supplier: ship"];
+ transit -> received [label="requester: receive, or receive-detailed\n(damaged or missing units recorded as a discrepancy)"];
+}

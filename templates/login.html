@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Log in{% endblock %}
+{% block content %}
+<section class="login-card">
+<div class="brand brand-light"><span class="brand-mark" aria-hidden="true">FB</span><span class="brand-name">Food Bank Database</span></div>
+<h1>Log in</h1>
+<p class="lead">{{ bank_name }}</p>
+<form method="post" action="{{ url_for('login_submit') }}" class="form-stack">
+<input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Username <input name="username" value="staff" required autocomplete="username"></label>
+<label>Password <input name="password" type="password" required autocomplete="current-password"></label>
+<button class="btn btn-primary">Log in</button>
+</form>
+<div class="note small">
+<p>Classroom demo accounts (only in demo mode):</p>
+<p>Staff: <code>staff</code> / <code>demo123</code> · Central administrator: <code>admin</code> / <code>admin123</code></p>
+</div>
+</section>
+{% endblock %}

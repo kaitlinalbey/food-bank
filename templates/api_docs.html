@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Food Bank API Reference</title><style>body{font-family:system-ui,Arial,sans-serif;max-width:920px;margin:24px auto;padding:0 15px}input,select,textarea,button{font:inherit;padding:7px;margin:3px}input,textarea{width:min(100%,750px);box-sizing:border-box}textarea{height:140px}pre{border:1px solid #aaa;background:#f5f5f5;padding:12px;overflow:auto}table{border-collapse:collapse}td,th{padding:5px 10px;border:1px solid #ccc;text-align:left}</style></head>
+<body><h1>Food Bank API — Developer Playground</h1>
+<p>Local demonstration only. <a href="/api/openapi.json">Download OpenAPI JSON</a>. Sign in with <code>POST /api/login</code>, then paste the returned token into the field below. This page never stores the token.</p>
+<label>Bearer token<br><input id="token" type="password" autocomplete="off" placeholder="Paste token here (no Bearer prefix)"></label>
+<form id="try"><label>Method <select id="method"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select></label>
+<label>Path <input id="path" value="/api/health"></label>
+<label>JSON request body (for JSON endpoints)<br><textarea id="payload" placeholder='{"bank_id":1,"username":"staff","password":"demo123"}'></textarea></label>
+<label><input type="checkbox" id="csv"> Send text/csv from body instead</label>
+<button>Send request</button></form>
+<h2>Response</h2><pre id="response">No request yet.</pre>
+<h2>Available endpoints</h2><table><tr><th>Method</th><th>Path</th><th>Purpose</th></tr>
+{% for method,path,summary in endpoints %}<tr><td>{{ method|upper }}</td><td><code>{{ path }}</code></td><td>{{ summary }}</td></tr>{% endfor %}
+</table><script>
+document.getElementById('try').addEventListener('submit',async event=>{
+ event.preventDefault(); const method=document.getElementById('method').value,path=document.getElementById('path').value;
+ const token=document.getElementById('token').value.trim(),payload=document.getElementById('payload').value;
+ const headers={};if(token)headers.Authorization='Bearer '+token;
+ const opts={method,headers};if(payload && method!=='GET') {headers['Content-Type']=document.getElementById('csv').checked?'text/csv':'application/json';opts.body=payload;}
+ const output=document.getElementById('response');output.textContent='Sending...';
+ try{const response=await fetch(path,opts);output.textContent='HTTP '+response.status+'\n'+await response.text();}
+ catch(error){output.textContent='Network error: '+String(error);}
+});
+</script></body></html>

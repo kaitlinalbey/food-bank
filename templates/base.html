@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% endblock %}{% if self.title() %} · {% endif %}Food Bank Database</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% set signed_in = session.get('token') %}
+{% macro navlink(endpoint, label) -%}
+<a href="{{ url_for(endpoint) }}"{% if active_page == endpoint %} class="active" aria-current="page"{% endif %}>{{ label }}</a>
+{%- endmacro %}
+{% if signed_in %}
+{# Small screens: the checkbox opens and closes the sidebar without JavaScript. #}
+<input type="checkbox" id="nav-toggle" class="nav-toggle" aria-hidden="true">
+<header class="topbar">
+  <label for="nav-toggle" class="nav-toggle-label" aria-label="Open or close the menu">&#9776; Menu</label>
+  <span class="topbar-title">Food Bank Database</span>
+</header>
+{% endif %}
+<div class="layout{% if not signed_in %} layout-public{% endif %}">
+{% if signed_in %}
+<aside class="sidebar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">FB</span>
+    <span class="brand-name">Food Bank Database</span>
+  </div>
+  <div class="who">
+    <strong>{{ bank_name }}</strong>
+    <span>{{ session.get('username') }} · {{ session.get('role') }}</span>
+    {% if link_offline %}<span class="pill pill-warn">Simulated outage</span>{% endif %}
+  </div>
+  <nav class="side-nav" aria-label="Main">
+    <p class="nav-group">Overview</p>
+    {{ navlink('home', 'Dashboard') }}
+    <p class="nav-group">Inventory</p>
+    {{ navlink('my_inventory_page', 'My inventory') }}
+    {{ navlink('other_banks_page', 'Other food banks') }}
+    {{ navlink('matching_page', 'Supply matching') }}
+    <p class="nav-group">Operations</p>
+    {{ navlink('transfers_page', 'Transfers') }}
+    {{ navlink('donations_page', 'Donations and waste') }}
+    {{ navlink('batches_page', 'Batches and recalls') }}
+    {{ navlink('transport_page', 'Transportation') }}
+    <p class="nav-group">System</p>
+    {{ navlink('offline_page', 'Offline sync') }}
+    {{ navlink('project_status', 'System status') }}
+    {{ navlink('more_page', 'More tools') }}
+    {% if is_admin %}{{ navlink('admin_page', 'Administration') }}{% endif %}
+  </nav>
+  <form method="post" action="{{ url_for('logout') }}" class="logout-form"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-ghost">Log out</button></form>
+</aside>
+{% endif %}
+<main class="content">
+{% with messages=get_flashed_messages() %}
+{% if messages %}<div class="messages">{% for message in messages %}<p><span class="flash {{ 'flash-error' if message.startswith(('Error','Could not','Lab error','Queue error','Choose a CSV','CSV is','Invalid','Session expired','This account','Central API')) else 'flash-ok' }}">{{ message }}</span></p>{% endfor %}</div>{% endif %}
+{% endwith %}
+{% block content %}{% endblock %}
+<footer class="footer">Class project with fictional sample food banks. Not for real operations.</footer>
+</main>
+</div>
+</body>
+</html>

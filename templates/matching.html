@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Supply matching{% endblock %}
+{% block content %}
+{% set role = user.role if user else session.get('role') %}
+{% set can_transfer = role in ['staff','manager','admin','dispatcher'] %}
+<div class="page-head">
+  <h1>Supply matching</h1>
+  <p class="lead">Your shortages paired with other banks' extra stock. Only unreserved, unexpired and non-recalled surplus is offered. Results are sorted by item, then by score (closer banks and food that expires sooner come first).</p>
+</div>
+
+<section class="panel" id="matches">
+<h2>Available supply matches</h2>
+{% if matches %}
+<div class="scroll"><table><thead><tr><th>Item</th><th>Food bank</th><th>Available to share</th><th>We need</th><th>Distance</th><th>Supplier's next expiration</th><th>Request</th></tr></thead><tbody>
+{% for match in matches %}<tr>
+<td><strong>{{ match.item_name }}</strong> <span class="small">({{ match.unit }})</span></td><td>{{ match.source_bank_name }}</td>
+<td>{{ match.available }}</td><td>{{ match.needed }}</td><td>{{ match.distance_miles }} miles</td>
+<td>{% if match.expiration_date %}{{ match.expiration_date }}{% if match.expiry_days is not none %} <span class="small">({{ match.expiry_days }} days)</span>{% endif %}{% else %}Not recorded{% endif %}</td>
+<td>{% if can_transfer %}<form method="post" action="{{ url_for('request_transfer') }}" class="formline">
+<input type="hidden" name="_csrf" value="{{ csrf_token }}"><input type="hidden" name="source_bank_id" value="{{ match.source_bank_id }}">
+<input type="hidden" name="item_id" value="{{ match.item_id }}"><input type="hidden" name="request_key" value="{{ new_request_key() }}">
+<input type="number" name="quantity" min="1" max="{{ match.suggested_quantity }}" value="{{ match.suggested_quantity }}" aria-label="Quantity of {{ match.item_name }} to request from {{ match.source_bank_name }}" required>
+<button class="btn btn-primary btn-small">Request</button></form>{% else %}<span class="small">View only</span>{% endif %}</td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}<p class="empty">No matching surpluses right now. A match appears when your bank is short of an item that another bank has extra of.</p>{% endif %}
+</section>
+
+<section class="panel" id="shortages">
+<h2>Our shortages</h2>
+{% if shortages %}
+<div class="scroll"><table><thead><tr><th>Item</th><th>Category</th><th>In stock</th><th>Usable</th><th>Target</th><th>Short by</th></tr></thead><tbody>
+{% for item in shortages %}<tr><td><strong>{{ item.item_name }}</strong> <span class="small">({{ item.unit }})</span></td><td>{{ item.category }}</td><td>{{ item.quantity }}</td><td>{{ item.usable }}</td><td>{{ item.target }}</td><td>{{ item.shortage }}</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="small">Shortages already count deliveries that are approved or on the way. Items with no match above have no extra stock at other banks right now.</p>
+{% else %}<p class="empty">No shortages. Every item is at or above its target (counting deliveries on the way).</p>{% endif %}
+</section>
+{% endblock %}

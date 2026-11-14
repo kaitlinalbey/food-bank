@@ -1,0 +1,32 @@
+// Distributed communication flow: one online request, then the offline and reconnect path.
+// Edit this file, then regenerate the SVG and PNG (see docs/DIAGRAMS.md).
+digraph Communication {
+ graph [rankdir=TB,bgcolor="white",fontname="Arial",fontsize=14,label="Distributed communication flow (online request and offline recovery)",labelloc=t,pad="0.3",nodesep="0.5",ranksep="0.45"];
+ node [shape=box,style="rounded,filled",fontname="Arial",fontsize=10,fillcolor="#eaf2fb",color="#94a3b8",margin="0.18,0.1"];
+ edge [fontname="Arial",fontsize=9,color="#64748b",arrowsize=.7];
+
+ subgraph cluster_online {
+  label="A. Normal online request (example: approve a transfer)"; fontname="Arial"; fontsize=11; color="#cbd5e1"; style="rounded";
+  a1 [label="1. Browser submits a form to its own bank node\nPOST /exchange/12/approve  (hidden _csrf field)"];
+  a2 [label="2. Node checks the CSRF token and that the session belongs to this bank"];
+  a3 [label="3. Node calls the central API over HTTP (4 second timeout)\nPOST /api/exchanges/12/approve\nAuthorization: Bearer token, X-Request-ID: correlation id"];
+  a4 [label="4. API checks the token, the user's role and which bank owns the transfer"];
+  a5 [label="5. SQLite BEGIN IMMEDIATE -> re-check stock -> update -> COMMIT\n(any error rolls the whole transaction back)",fillcolor="#f3e6cf",color="#cbad76"];
+  a6 [label="6. JSON reply: {\"status\": \"approved\"} or {\"error\": \"...\"} with a 4xx code\nThe request is logged in distributed_events with the same correlation id"];
+  a7 [label="7. Node shows a message and redirects the browser.\nIt also logs method, path, result and latency in its local node_events table"];
+  a1->a2->a3->a4->a5->a6->a7;
+ }
+ subgraph cluster_offline {
+  label="B. Central API cannot be reached"; fontname="Arial"; fontsize=11; color="#e9c9c9"; style="rounded";
+  o1 [label="Connection error or timeout -> node treats it as HTTP 503",fillcolor="#f9e1e1",color="#cf9b9b"];
+  o2 [label="Dashboard shows the offline page with the last saved inventory snapshot"];
+  o3 [label="Staff can queue a stock adjustment (item, delta, base_version, op_key)\nor an independent donation receipt (op_key, lot_code)\nin node_<bank id>_queue.db"];
+  o4 [label="API is back online -> staff press Sync"];
+  o5 [label="Node replays the queue in order:\nPOST /api/inventory/<id>/adjust  or  POST /api/offline/receipts"];
+  r1 [label="200 or 201 -> marked synced\n(same op_key sent again = duplicate, no second change)",fillcolor="#dbf0e0",color="#66a179"];
+  r2 [label="409 version conflict, or 400/404/410/413/422\n-> marked as a conflict for staff to review",fillcolor="#fce9bf",color="#c8a452"];
+  r3 [label="Network error, 401/403, 408, 429 or 5xx\n-> stop and keep the remaining rows pending",fillcolor="#f9e1e1",color="#cf9b9b"];
+  o1->o2->o3->o4->o5; o5->r1; o5->r2; o5->r3;
+ }
+ a3 -> o1 [style=dashed,label="if the API cannot be reached"];
+}

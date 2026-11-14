@@ -1,0 +1,32 @@
+// Core SQLite relationships (simplified). Full column list: docs/DATABASE_DICTIONARY.md
+// Edit this file, then regenerate the SVG and PNG (see docs/DIAGRAMS.md).
+digraph FoodBankER {
+ graph [rankdir=LR,bgcolor="white",fontname="Arial",fontsize=14,label="Core SQLite relationships (simplified; arrows go from the parent table to the table that references it)",labelloc=t,pad="0.25",nodesep="0.3",ranksep="0.7",splines=true];
+ node [shape=record,style="filled",fontname="Arial",fontsize=10,fillcolor="#f1f5f9",color="#94a3b8",margin="0.12,0.1"];
+ edge [color="#64748b",arrowsize=.65,fontsize=9,fontname="Arial"];
+ banks [label="{banks | id (PK) | name, area, latitude, longitude}",fillcolor="#dcecfb"];
+ items [label="{items | id (PK) | name, unit, category, barcode, storage_type}",fillcolor="#dcecfb"];
+ users [label="{users | id (PK) | bank_id (FK) | username, role, active}"];
+ inventory [label="{inventory | bank_id + item_id (PK, FK) | quantity, target, version}",fillcolor="#d9eee5"];
+ lots [label="{lots | id (PK) | bank_id, item_id (FK) | quantity, expiration_date, lot_code, recalled}",fillcolor="#d9eee5"];
+ donations [label="{donations | id (PK) | bank_id, item_id, lot_id (FK) | donor, quantity}"];
+ exchanges [label="{exchanges | id (PK) | source_bank_id, destination_bank_id (FK) | item_id (FK) | quantity, status, request_key}",fillcolor="#fbead0"];
+ shipment_lots [label="{shipment_lots | exchange_id, lot_id (FK) | quantity, lot_code}"];
+ deliveries [label="{deliveries | exchange_id (PK, FK) | driver_id, vehicle_id (FK)}"];
+ drivers [label="{drivers | id (PK) | bank_id (FK)}"];
+ vehicles [label="{vehicles | id (PK) | bank_id (FK) | capacity_units, refrigerated}"];
+ recalls [label="{recalls | id (PK) | item_id (FK) | lot_code, status}"];
+ reconciliations [label="{reconciliations | id (PK) | bank_id, item_id (FK) | counted_qty, base_version, status}"];
+ notifications [label="{notifications | id (PK) | bank_id, exchange_id (FK)}"];
+ sync_ops [label="{sync_operations | id (PK) | bank_id, item_id (FK) | op_key, delta, base_version}",fillcolor="#efe7fb"];
+ offline_receipts [label="{offline_receipts | id (PK) | bank_id, item_id (FK) | op_key, quantity, lot_code}",fillcolor="#efe7fb"];
+ distributed_events [label="{distributed_events | id (PK) | bank_id (FK) | method, path, status_code, correlation_id}",fillcolor="#efe7fb"];
+ banks -> users; banks -> inventory; items -> inventory;
+ banks -> lots; items -> lots; lots -> donations; banks -> donations;
+ banks -> exchanges [label="source and\ndestination"]; items -> exchanges;
+ exchanges -> shipment_lots; lots -> shipment_lots; exchanges -> deliveries;
+ drivers -> deliveries; vehicles -> deliveries; banks -> drivers; banks -> vehicles;
+ items -> recalls; banks -> reconciliations; items -> reconciliations;
+ banks -> notifications; exchanges -> notifications;
+ banks -> sync_ops; banks -> offline_receipts; banks -> distributed_events;
+}

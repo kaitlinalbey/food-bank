@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block title %}Donations and waste{% endblock %}
+{% block content %}
+{% set role = user.role if user else session.get('role') %}
+{% set can_edit = role in ['staff','manager','admin'] %}
+<div class="page-head">
+  <h1>Donations and waste</h1>
+  <p class="lead">Record food that arrives and food that has to be thrown away. Each donation becomes its own stock batch with its own expiration date. Use fictional donor labels only.</p>
+</div>
+
+{% if can_edit %}
+<div class="grid-2">
+<section class="panel" id="receive">
+<h2>Receive a donation</h2>
+<form class="form-stack" method="post" action="{{ url_for('record_donation') }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Item <select name="item_id">{% for item in inventory %}<option value="{{ item.item_id }}">{{ item.item_name }} ({{ item.unit }})</option>{% endfor %}</select></label>
+<label>Quantity <input name="quantity" type="number" min="1" value="5" required></label>
+<label>Donor label <input name="donor" value="Community donation" maxlength="80" required></label>
+<label>Registered donor ID (optional) <input type="number" name="donor_id" min="1"></label>
+<label>Batch code (optional) <input name="lot_code" maxlength="60" placeholder="e.g. DON-2026-001"></label>
+<label>Expires (optional) <input name="expiration_date" type="date"></label>
+<button class="btn btn-primary">Record donation</button></form>
+</section>
+<section class="panel" id="report-waste">
+<h2>Report wasted food</h2>
+<form class="form-stack" method="post" action="{{ url_for('record_waste') }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Item <select name="item_id">{% for item in inventory %}<option value="{{ item.item_id }}">{{ item.item_name }} ({{ item.unit }})</option>{% endfor %}</select></label>
+<label>Quantity <input name="quantity" type="number" min="1" value="1" required></label>
+<label>Reason <select name="reason"><option>Expired</option><option>Spoiled</option><option>Damaged</option><option>Inventory correction</option></select></label>
+<label>Specific batch ID (optional) <input name="lot_id" type="number" min="1" placeholder="Blank = oldest batch first"></label>
+<button class="btn btn-primary">Record waste</button></form>
+<p class="small">Reserved stock cannot be discarded. Batch IDs are listed on <a href="{{ url_for('batches_page') }}">Batches and recalls</a>.</p>
+</section>
+</div>
+{% else %}<p class="note">Your role can view donation and waste records but cannot record new ones.</p>{% endif %}
+
+<div class="grid-2">
+<section class="panel" id="records">
+<h2>Donation records</h2>
+<div class="scroll"><table><thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Donor</th><th>Received</th></tr></thead><tbody>
+{% for d in donations %}<tr><td>{{ d.id }}</td><td>{{ d.item_name }}</td><td>+{{ d.quantity }}</td><td>{{ d.donor }}</td><td class="small">{{ d.created_at }}</td></tr>
+{% else %}<tr><td colspan="5" class="empty">No donations recorded yet.</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="small">A printable receipt for any donation is available from the API: <code>GET /api/donations/&lt;id&gt;/receipt</code>.</p>
+</section>
+<section class="panel" id="waste">
+<h2>Waste records</h2>
+<div class="scroll"><table><thead><tr><th>Item</th><th>Qty</th><th>Reason</th><th>Recorded</th></tr></thead><tbody>
+{% for w in waste %}<tr><td>{{ w.item_name }}</td><td>-{{ w.quantity }}</td><td>{{ w.reason }}</td><td class="small">{{ w.created_at }}</td></tr>
+{% else %}<tr><td colspan="4" class="empty">No waste recorded yet.</td></tr>{% endfor %}
+</tbody></table></div>
+</section>
+</div>
+
+<section class="panel" id="donors">
+<h2>Donor directory</h2>
+{% if can_edit %}<form class="formline" method="post" action="{{ url_for('advanced_action',action='donor') }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Donor label <input name="name" required maxlength="80"></label>
+<label>Notes <input name="notes" maxlength="200"></label><button class="btn">Add donor</button></form>{% endif %}
+<div class="scroll"><table><thead><tr><th>ID</th><th>Donor</th><th>Donations</th><th>Units</th></tr></thead><tbody>
+{% for d in donors %}<tr><td>#{{ d.id }}</td><td>{{ d.name }}</td><td>{{ d.donation_count }}</td><td>{{ d.total_units }}</td></tr>
+{% else %}<tr><td colspan="4" class="empty">No donor profiles yet.</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="small">Use the donor ID in "Registered donor ID" when recording a donation to link it to this directory.</p>
+</section>
+{% endblock %}
