@@ -1,0 +1,37 @@
+// System architecture of the Food Bank Database (local Windows demo layout).
+// Edit this file, then regenerate the SVG and PNG (see docs/DIAGRAMS.md).
+digraph FoodBankArchitecture {
+  graph [rankdir=LR, bgcolor="white", fontname="Arial", fontsize=14, label="Food Bank Database - system architecture", labelloc=t, pad="0.3", nodesep="0.35", ranksep="0.9", splines=spline];
+  node [shape=box, style="rounded,filled", color="#94a3b8", penwidth=1.3, fillcolor="#eaf2fb", fontname="Arial", fontsize=11, margin="0.2,0.12"];
+  edge [color="#64748b", fontname="Arial", fontsize=9, arrowsize=.75];
+
+  subgraph cluster_browsers {
+    label="Web browsers (staff)"; fontname="Arial"; fontsize=11; color="#e2e8f0"; style="rounded";
+    b1 [label="Browser\nCentral staff", fillcolor="#ffffff"];
+    b2 [label="Browser\nNorthside staff", fillcolor="#ffffff"];
+    b3 [label="Browser\nWestside staff", fillcolor="#ffffff"];
+  }
+  subgraph cluster_nodes {
+    label="Food-bank application nodes (separate Flask processes)"; fontname="Arial"; fontsize=11; color="#cbd5e1"; style="rounded";
+    n1 [label="Central Food Pantry node\nnode.py --bank 1\n127.0.0.1:5001"];
+    n2 [label="Northside Food Pantry node\nnode.py --bank 2\n127.0.0.1:5002"];
+    n3 [label="Westside Food Pantry node\nnode.py --bank 3\n127.0.0.1:5003"];
+  }
+  q1 [label="node_1_queue.db\nsnapshot, offline queue,\nlocal request log", shape=cylinder, fillcolor="#f8fafc"];
+  q2 [label="node_2_queue.db", shape=cylinder, fillcolor="#f8fafc"];
+  q3 [label="node_3_queue.db", shape=cylinder, fillcolor="#f8fafc"];
+  subgraph cluster_central {
+    label="Central service"; fontname="Arial"; fontsize=11; color="#cbd5e1"; style="rounded";
+    api [label="Central Flask REST API\nserver.py / app.py\n127.0.0.1:5000\nlogin, permissions, business rules", fillcolor="#d4e9e2", color="#79ab98"];
+    db [label="SQLite database\ndata/food_bank.db\n28 tables", shape=cylinder, fillcolor="#f3e6cf", color="#cbad76"];
+  }
+
+  b1 -> n1 [label="HTML forms\n(session cookie + CSRF)"];
+  b2 -> n2; b3 -> n3;
+  n1 -> api [label="HTTP + JSON\nBearer token, X-Request-ID"];
+  n2 -> api; n3 -> api;
+  api -> db [label="BEGIN IMMEDIATE\ntransactions"];
+  api -> n3 [label="GET /node-health\n(status probe, every node)", style=dashed, constraint=false];
+  n1 -> q1 [style=dashed]; n2 -> q2 [style=dashed]; n3 -> q3 [style=dashed];
+  {rank=same; q1; q2; q3}
+}

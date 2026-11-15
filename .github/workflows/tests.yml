@@ -1,0 +1,29 @@
+name: Food Bank quality checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Flask
+        run: python -m pip install -r requirements.txt
+      - name: Run complete regression, scenarios and benchmark
+        run: python release_check.py
+      - name: Verify Compose syntax (not runtime)
+        run: docker compose config --quiet
+      - name: Upload release reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-reports-py${{ matrix.python-version }}
+          path: reports/release_verification.*
+          if-no-files-found: warn

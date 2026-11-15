@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}Offline sync{% endblock %}
+{% block content %}
+{% set role = user.role if user else session.get('role') %}
+{% set can_edit = role in ['staff','manager','admin'] %}
+<div class="page-head">
+  <h1>Offline synchronization</h1>
+  <p class="lead">When this bank cannot reach the central server, staff can save stock adjustments and new donations on this computer, then send them when the connection is back. Each change is applied once. A change based on old data is held for review instead of overwriting newer numbers.</p>
+</div>
+
+<section class="panel" id="connection">
+{% if online %}
+<h2>Connection: <span class="tag tag-ok">Online</span></h2>
+<p>This bank node can reach the central server. Queued changes can be synchronized now.</p>
+{% else %}
+<h2>Bank node is offline <span class="tag tag-bad">Offline</span></h2>
+<p role="alert" class="alert alert-error">{{ message }}</p>
+<p>Changes below are saved on this computer only, using the last saved inventory snapshot{% if snapshot %}{% endif %}. Nothing is sent until the connection is back.</p>
+{% endif %}
+{% if outage_controls %}
+<form method="post" action="{{ url_for('simulate_offline') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<button class="btn {{ 'btn-primary' if simulated else 'btn-danger' }}">{{ 'Restore simulated connection' if simulated else 'Simulate connection outage' }}</button>
+<span class="small">Classroom demo tool (administrators only). Currently {{ 'OFFLINE' if simulated else 'ONLINE' }}.</span></form>
+{% elif simulated %}<p class="note">This is a simulated outage for the classroom demo. An administrator can restore the connection.</p>
+{% else %}<p class="small">Outage simulation is a classroom demo tool for administrators only.</p>{% endif %}
+</section>
+
+<section class="panel" id="queue">
+<h2>Queued changes</h2>
+{% if can_edit %}
+{% if items %}
+<form class="formline" method="post" action="{{ url_for('queue_offline') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Item <select name="item_id">{% for item in items %}<option value="{{ item.item_id }}">{{ item.item_name }} (version {{ item.version }}, qty {{ item.quantity }})</option>{% endfor %}</select></label>
+<label>Change in quantity (+/-) <input type="number" name="delta" step="1" value="2" required></label>
+<button class="btn">Save adjustment locally</button></form>
+{% else %}<p class="empty">No inventory snapshot is stored yet. Open the dashboard once while online before working offline.</p>{% endif %}
+<form method="post" action="{{ url_for('synchronize_offline') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-primary">Attempt sync</button></form>
+{% endif %}
+<div class="scroll"><table><thead><tr><th>Item</th><th>Change</th><th>Status</th><th>Message</th><th></th></tr></thead><tbody>
+{% for entry in queue %}<tr><td>{{ entry.item_name }}</td><td>{{ '%+d'|format(entry.delta) }}</td>
+<td><span class="tag tag-{{ 'bad' if entry.status=='conflict' else 'info' }}">{{ entry.status }}</span></td><td class="small">{{ entry.error }}</td>
+<td>{% if can_edit %}<form class="short-form" method="post" action="{{ url_for('discard_offline',row_id=entry.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-small">Discard</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="5" class="empty">No pending offline changes.</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="small">"conflict" means the item changed on the server while this change waited. Check the current amount, discard the change and enter it again if it is still needed.</p>
+</section>
+
+<section class="panel" id="receipts">
+<h2>Offline donation receipts</h2>
+<p>A separate new donation can be recorded offline. It adds a new batch, so it is safe to merge even if the item changed meanwhile.</p>
+{% if can_edit %}
+<form class="formline" method="post" action="{{ url_for('advanced_queue_receipt') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Item <select name="item_id">{% for item in items %}<option value="{{ item.item_id }}">{{ item.item_name }}</option>{% endfor %}</select></label>
+<label>Received quantity <input name="quantity" type="number" min="1" required></label>
+<label>Donor label <input name="donor" value="Offline donation" required maxlength="80"></label><label>Expiration <input type="date" name="expiration_date"></label><button class="btn">Queue receipt locally</button></form>
+<form method="post" action="{{ url_for('advanced_sync_receipts') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-primary">Sync donation receipts</button></form>
+{% endif %}
+<ul class="plain-list">{% for r in receipts %}<li>#{{ r.id }} {{ r.item_name }}: +{{ r.quantity }} from {{ r.donor }} <span class="tag tag-info">{{ r.status }}</span>
+{% if can_edit %}<form class="short-form" method="post" action="{{ url_for('advanced_discard_receipt',receipt_id=r.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-small">Discard</button></form>{% endif %}</li>{% else %}<li class="muted">No pending receipts.</li>{% endfor %}</ul>
+</section>
+{% endblock %}

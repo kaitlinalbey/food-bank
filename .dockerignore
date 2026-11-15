@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+*.sqlite3
+*.db
+*.zip
+.env
+reports
+backups
+data/*
+!.gitkeep

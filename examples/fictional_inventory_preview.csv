@@ -1,0 +1,145 @@
+bank,item,category,unit,quantity,target,expiration_date
+Central Food Pantry,All-Purpose Flour,Baking,bags,9,20,2027-07-07
+Central Food Pantry,Apples,Produce,boxes,3,10,
+Central Food Pantry,Applesauce,Pantry,jars,19,10,2027-12-04
+Central Food Pantry,Baby Food Puree,Infant Supplies,jars,22,10,2027-09-05
+Central Food Pantry,Baby Formula,Infant Supplies,cans,8,16,2027-09-05
+Central Food Pantry,Bananas,Produce,bunches,8,15,2026-11-15
+Central Food Pantry,Bar Soap,Hygiene,bars,33,14,
+Central Food Pantry,Bottled Water,Beverages,cases,35,15,
+Central Food Pantry,Brown Rice,Dry Goods,bags,6,20,2028-02-02
+Central Food Pantry,Canned Beans,Canned Goods,cans,42,15,
+Central Food Pantry,Canned Chicken,Protein,cans,28,11,2028-09-19
+Central Food Pantry,Canned Corn,Canned Goods,cans,43,18,2028-05-12
+Central Food Pantry,Canned Fruit,Canned Goods,cans,5,17,2028-03-03
+Central Food Pantry,Canned Peas,Canned Goods,cans,13,20,2028-07-01
+Central Food Pantry,Canned Soup,Canned Goods,cans,25,15,
+Central Food Pantry,Canned Tomatoes,Canned Goods,cans,39,15,2028-07-01
+Central Food Pantry,Canned Tuna,Protein,cans,15,22,2028-08-20
+Central Food Pantry,Cereal,Dry Goods,boxes,6,12,
+Central Food Pantry,Cheddar Cheese,Dairy & Eggs,packs,5,18,2026-12-09
+Central Food Pantry,Cooking Oil,Pantry,bottles,7,18,2027-08-16
+Central Food Pantry,Diapers,Hygiene,packs,6,20,
+Central Food Pantry,Dish Soap,Hygiene,bottles,8,19,
+Central Food Pantry,Dry Black Beans,Dry Goods,bags,42,15,2028-05-02
+Central Food Pantry,Eggs,Dairy & Eggs,cartons,18,12,2026-12-06
+Central Food Pantry,Flour Tortillas,Bakery,packs,25,12,2026-11-29
+Central Food Pantry,Fresh Carrots,Produce,bags,13,19,2026-11-27
+Central Food Pantry,Frozen Berries,Frozen,bags,18,12,2027-05-08
+Central Food Pantry,Frozen Chicken,Frozen,packs,23,12,2027-02-27
+Central Food Pantry,Frozen Fish,Frozen,packs,4,17,2027-03-29
+Central Food Pantry,Frozen Vegetables,Frozen,bags,12,18,2027-04-28
+Central Food Pantry,Granola Bars,Snacks,boxes,7,18,2027-06-17
+Central Food Pantry,Granulated Sugar,Baking,bags,28,10,2028-05-02
+Central Food Pantry,Instant Mashed Potatoes,Dry Goods,boxes,10,18,2027-09-05
+Central Food Pantry,Lentils,Dry Goods,bags,34,12,2028-01-03
+Central Food Pantry,Macaroni and Cheese,Dry Goods,boxes,25,12,2028-01-03
+Central Food Pantry,Oatmeal,Dry Goods,canisters,9,24,2027-11-04
+Central Food Pantry,Oranges,Produce,bags,6,16,2026-11-29
+Central Food Pantry,Pasta,Dry Goods,boxes,12,12,
+Central Food Pantry,Peanut Butter,Pantry,jars,4,15,
+Central Food Pantry,Plain Yogurt,Dairy & Eggs,cups,21,12,2026-11-25
+Central Food Pantry,Potatoes,Produce,bags,32,13,2026-12-24
+Central Food Pantry,Rice,Dry Goods,bags,5,20,
+Central Food Pantry,Saltine Crackers,Snacks,boxes,25,12,2027-07-07
+Central Food Pantry,Shelf-Stable Milk,Beverages,cartons,30,12,2027-06-27
+Central Food Pantry,Tomato Sauce,Canned Goods,jars,29,12,2028-01-13
+Central Food Pantry,Toothpaste,Hygiene,tubes,26,11,
+Central Food Pantry,Whole Milk,Dairy & Eggs,gallons,9,16,2026-11-21
+Central Food Pantry,Whole Wheat Bread,Bakery,loaves,11,16,2026-11-16
+Northside Food Pantry,All-Purpose Flour,Baking,bags,28,10,2027-07-07
+Northside Food Pantry,Apples,Produce,boxes,18,8,
+Northside Food Pantry,Applesauce,Pantry,jars,6,18,2027-12-04
+Northside Food Pantry,Baby Food Puree,Infant Supplies,jars,6,19,2027-09-05
+Northside Food Pantry,Baby Formula,Infant Supplies,cans,17,14,2027-09-05
+Northside Food Pantry,Bananas,Produce,bunches,18,10,2026-11-15
+Northside Food Pantry,Bar Soap,Hygiene,bars,15,11,
+Northside Food Pantry,Bottled Water,Beverages,cases,6,15,
+Northside Food Pantry,Brown Rice,Dry Goods,bags,21,18,2028-02-02
+Northside Food Pantry,Canned Beans,Canned Goods,cans,4,18,
+Northside Food Pantry,Canned Chicken,Protein,cans,9,20,2028-09-19
+Northside Food Pantry,Canned Corn,Canned Goods,cans,5,20,2028-05-12
+Northside Food Pantry,Canned Fruit,Canned Goods,cans,31,11,2028-03-03
+Northside Food Pantry,Canned Peas,Canned Goods,cans,35,12,2028-07-01
+Northside Food Pantry,Canned Soup,Canned Goods,cans,6,20,
+Northside Food Pantry,Canned Tomatoes,Canned Goods,cans,13,20,2028-07-01
+Northside Food Pantry,Canned Tuna,Protein,cans,17,14,2028-08-20
+Northside Food Pantry,Cereal,Dry Goods,boxes,20,12,
+Northside Food Pantry,Cheddar Cheese,Dairy & Eggs,packs,26,11,2026-12-09
+Northside Food Pantry,Cooking Oil,Pantry,bottles,25,10,2027-08-16
+Northside Food Pantry,Diapers,Hygiene,packs,29,12,
+Northside Food Pantry,Dish Soap,Hygiene,bottles,22,10,
+Northside Food Pantry,Dry Black Beans,Dry Goods,bags,8,25,2028-05-02
+Northside Food Pantry,Eggs,Dairy & Eggs,cartons,6,17,2026-12-06
+Northside Food Pantry,Flour Tortillas,Bakery,packs,8,18,2026-11-29
+Northside Food Pantry,Fresh Carrots,Produce,bags,24,11,2026-11-27
+Northside Food Pantry,Frozen Berries,Frozen,bags,9,18,2027-05-08
+Northside Food Pantry,Frozen Chicken,Frozen,packs,8,19,2027-02-27
+Northside Food Pantry,Frozen Fish,Frozen,packs,21,12,2027-03-29
+Northside Food Pantry,Frozen Vegetables,Frozen,bags,6,20,2027-04-28
+Northside Food Pantry,Granola Bars,Snacks,boxes,30,10,2027-06-17
+Northside Food Pantry,Granulated Sugar,Baking,bags,6,16,2028-05-02
+Northside Food Pantry,Instant Mashed Potatoes,Dry Goods,boxes,18,12,2027-09-05
+Northside Food Pantry,Lentils,Dry Goods,bags,7,22,2028-01-03
+Northside Food Pantry,Macaroni and Cheese,Dry Goods,boxes,4,16,2028-01-03
+Northside Food Pantry,Oatmeal,Dry Goods,canisters,38,14,2027-11-04
+Northside Food Pantry,Oranges,Produce,bags,20,12,2026-11-29
+Northside Food Pantry,Pasta,Dry Goods,boxes,9,15,
+Northside Food Pantry,Peanut Butter,Pantry,jars,18,10,
+Northside Food Pantry,Plain Yogurt,Dairy & Eggs,cups,7,17,2026-11-25
+Northside Food Pantry,Potatoes,Produce,bags,7,18,2026-12-24
+Northside Food Pantry,Rice,Dry Goods,bags,40,12,
+Northside Food Pantry,Saltine Crackers,Snacks,boxes,5,19,2027-07-07
+Northside Food Pantry,Shelf-Stable Milk,Beverages,cartons,7,18,2027-06-27
+Northside Food Pantry,Tomato Sauce,Canned Goods,jars,8,18,2028-01-13
+Northside Food Pantry,Toothpaste,Hygiene,tubes,6,20,
+Northside Food Pantry,Whole Milk,Dairy & Eggs,gallons,3,13,2026-11-21
+Northside Food Pantry,Whole Wheat Bread,Bakery,loaves,18,10,2026-11-16
+Westside Food Pantry,All-Purpose Flour,Baking,bags,11,18,2027-07-07
+Westside Food Pantry,Apples,Produce,boxes,8,10,
+Westside Food Pantry,Applesauce,Pantry,jars,29,12,2027-12-04
+Westside Food Pantry,Baby Food Puree,Infant Supplies,jars,18,11,2027-09-05
+Westside Food Pantry,Baby Formula,Infant Supplies,cans,28,12,2027-09-05
+Westside Food Pantry,Bananas,Produce,bunches,5,16,2026-11-15
+Westside Food Pantry,Bar Soap,Hygiene,bars,5,18,
+Westside Food Pantry,Bottled Water,Beverages,cases,35,12,
+Westside Food Pantry,Brown Rice,Dry Goods,bags,38,12,2028-02-02
+Westside Food Pantry,Canned Beans,Canned Goods,cans,30,10,
+Westside Food Pantry,Canned Chicken,Protein,cans,18,14,2028-09-19
+Westside Food Pantry,Canned Corn,Canned Goods,cans,18,13,2028-05-12
+Westside Food Pantry,Canned Fruit,Canned Goods,cans,16,18,2028-03-03
+Westside Food Pantry,Canned Peas,Canned Goods,cans,7,18,2028-07-01
+Westside Food Pantry,Canned Soup,Canned Goods,cans,30,10,
+Westside Food Pantry,Canned Tomatoes,Canned Goods,cans,13,16,2028-07-01
+Westside Food Pantry,Canned Tuna,Protein,cans,40,14,2028-08-20
+Westside Food Pantry,Cereal,Dry Goods,boxes,4,15,
+Westside Food Pantry,Cheddar Cheese,Dairy & Eggs,packs,15,17,2026-12-09
+Westside Food Pantry,Cooking Oil,Pantry,bottles,19,12,2027-08-16
+Westside Food Pantry,Diapers,Hygiene,packs,12,17,
+Westside Food Pantry,Dish Soap,Hygiene,bottles,15,13,
+Westside Food Pantry,Dry Black Beans,Dry Goods,bags,12,16,2028-05-02
+Westside Food Pantry,Eggs,Dairy & Eggs,cartons,31,12,2026-12-06
+Westside Food Pantry,Flour Tortillas,Bakery,packs,11,12,2026-11-29
+Westside Food Pantry,Fresh Carrots,Produce,bags,6,20,2026-11-27
+Westside Food Pantry,Frozen Berries,Frozen,bags,25,12,2027-05-08
+Westside Food Pantry,Frozen Chicken,Frozen,packs,24,14,2027-02-27
+Westside Food Pantry,Frozen Fish,Frozen,packs,29,15,2027-03-29
+Westside Food Pantry,Frozen Vegetables,Frozen,bags,40,15,2027-04-28
+Westside Food Pantry,Granola Bars,Snacks,boxes,12,18,2027-06-17
+Westside Food Pantry,Granulated Sugar,Baking,bags,22,12,2028-05-02
+Westside Food Pantry,Instant Mashed Potatoes,Dry Goods,boxes,33,11,2027-09-05
+Westside Food Pantry,Lentils,Dry Goods,bags,16,14,2028-01-03
+Westside Food Pantry,Macaroni and Cheese,Dry Goods,boxes,30,14,2028-01-03
+Westside Food Pantry,Oatmeal,Dry Goods,canisters,15,18,2027-11-04
+Westside Food Pantry,Oranges,Produce,bags,30,11,2026-11-29
+Westside Food Pantry,Pasta,Dry Goods,boxes,30,12,
+Westside Food Pantry,Peanut Butter,Pantry,jars,20,10,
+Westside Food Pantry,Plain Yogurt,Dairy & Eggs,cups,28,13,2026-11-25
+Westside Food Pantry,Potatoes,Produce,bags,14,17,2026-12-24
+Westside Food Pantry,Rice,Dry Goods,bags,8,16,
+Westside Food Pantry,Saltine Crackers,Snacks,boxes,23,12,2027-07-07
+Westside Food Pantry,Shelf-Stable Milk,Beverages,cartons,19,11,2027-06-27
+Westside Food Pantry,Tomato Sauce,Canned Goods,jars,18,14,2028-01-13
+Westside Food Pantry,Toothpaste,Hygiene,tubes,13,13,
+Westside Food Pantry,Whole Milk,Dairy & Eggs,gallons,25,12,2026-11-21
+Westside Food Pantry,Whole Wheat Bread,Bakery,loaves,5,15,2026-11-16

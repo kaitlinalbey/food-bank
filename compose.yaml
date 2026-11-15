@@ -1,0 +1,52 @@
+# Local class demonstration only. Host ports bind to 127.0.0.1, not the public network.
+# One central SQLite database remains a single point of failure.
+services:
+  api:
+    build: .
+    command: ["python","server.py","--host","0.0.0.0","--port","5000"]
+    environment:
+      FOOD_BANK_NODE_URL_TEMPLATE: "http://bank{bank_id}:{port}"
+      FOOD_BANK_SEED_EXPANDED: "1"
+      # Classroom demo: enables the public demo accounts. Remove for any other use.
+      FOOD_BANK_DEMO_MODE: "1"
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - demo_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health',timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  bank1:
+    build: .
+    command: ["python","node.py","--bank","1","--host","0.0.0.0","--port","5001","--api","http://api:5000"]
+    ports:
+      - "127.0.0.1:5001:5001"
+    volumes:
+      - demo_data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+  bank2:
+    build: .
+    command: ["python","node.py","--bank","2","--host","0.0.0.0","--port","5002","--api","http://api:5000"]
+    ports:
+      - "127.0.0.1:5002:5002"
+    volumes:
+      - demo_data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+  bank3:
+    build: .
+    command: ["python","node.py","--bank","3","--host","0.0.0.0","--port","5003","--api","http://api:5000"]
+    ports:
+      - "127.0.0.1:5003:5003"
+    volumes:
+      - demo_data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+volumes:
+  demo_data:

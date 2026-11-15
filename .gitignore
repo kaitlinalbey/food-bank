@@ -218,3 +218,27 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Food Bank Management System rules ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.log
+.env
+*.sqlite3
+*.db
+/data/*
+!/data/.gitkeep
+/backups/
+
+# Local offline data and automatic migration snapshots
+**/backups_before_upgrade/
+/reports/
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Clean, per-run presentation data
+/data/presentation_sessions/

@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Page moved{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>This page has moved</h1>
+  <p class="lead">The former "Additional features" page was split into separate pages. Choose where you want to go:</p>
+</div>
+<section class="panel">
+<div class="scroll"><table><thead><tr><th>Feature</th><th>New page</th></tr></thead><tbody>
+<tr><td>Donor directory</td><td><a href="{{ url_for('donations_page',_anchor='donors') }}">Donations and waste</a></td></tr>
+<tr><td>Batch recalls, storage zones</td><td><a href="{{ url_for('batches_page',_anchor='recalls') }}">Batches and recalls</a></td></tr>
+<tr><td>Physical counts</td><td><a href="{{ url_for('more_page',_anchor='counts') }}">More tools</a></td></tr>
+<tr><td>Drivers, vehicles, assignments, delivery problems</td><td><a href="{{ url_for('transport_page') }}">Transportation</a></td></tr>
+<tr><td>Offline donation receipts</td><td><a href="{{ url_for('offline_page',_anchor='receipts') }}">Offline sync</a></td></tr>
+<tr><td>Analytics</td><td><a href="{{ url_for('more_page',_anchor='analytics') }}">More tools</a></td></tr>
+<tr><td>Test lab (administrators)</td><td><a href="{{ url_for('more_page',_anchor='lab') }}">More tools</a></td></tr>
+<tr><td>Request traces and event logs</td><td><a href="{{ url_for('project_status') }}">System status</a></td></tr>
+</tbody></table></div>
+</section>
+{# Bookmarks like /advanced#recalls go straight to the new page. Fixed map only. #}
+<script>
+(function(){var map={'#donors':'{{ url_for('donations_page') }}#donors','#recalls':'{{ url_for('batches_page') }}#recalls','#storage':'{{ url_for('batches_page') }}#storage','#counts':'{{ url_for('more_page') }}#counts','#transport':'{{ url_for('transport_page') }}#fleet','#discrepancies':'{{ url_for('transport_page') }}#discrepancies','#offline-receipts':'{{ url_for('offline_page') }}#receipts','#analytics':'{{ url_for('more_page') }}#analytics','#lab':'{{ url_for('more_page') }}#lab','#traces':'{{ url_for('project_status') }}#events'};
+var target=map[window.location.hash];if(target){window.location.replace(target);}})();
+</script>
+{% endblock %}

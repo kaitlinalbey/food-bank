@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+{% set role = user.role if user else session.get('role') %}
+{% set can_transfer = role in ['staff','manager','admin','dispatcher'] %}
+<div class="page-head">
+  <h1>Dashboard</h1>
+  <p class="lead">{{ bank.name }} · {{ bank.area }}</p>
+</div>
+
+<section id="overview" class="cards" aria-label="Overview">
+  <a class="card stat" href="{{ url_for('my_inventory_page') }}"><span class="stat-value">{{ stats.inventory_items }}</span><span class="stat-label">Inventory items</span></a>
+  <a class="card stat{% if stats.shortage_items %} stat-warn{% endif %}" href="{{ url_for('my_inventory_page',status='shortage') }}"><span class="stat-value">{{ stats.shortage_items }}</span><span class="stat-label">Shortages</span></a>
+  <a class="card stat" href="{{ url_for('my_inventory_page',status='surplus') }}"><span class="stat-value">{{ stats.surplus_items }}</span><span class="stat-label">Surplus items</span></a>
+  <a class="card stat{% if stats.pending_requests %} stat-attn{% endif %}" href="{{ url_for('transfers_page',tab='pending') }}"><span class="stat-value">{{ stats.pending_requests }}</span><span class="stat-label">Pending transfer requests</span></a>
+  <a class="card stat" href="{{ url_for('transfers_page',tab='completed') }}"><span class="stat-value">{{ stats.completed_transfers }}</span><span class="stat-label">Received transfers</span></a>
+</section>
+
+<div class="grid-2">
+<section class="panel" id="attention">
+  <h2>Needs attention</h2>
+  <ul class="plain-list">
+    <li><a href="{{ url_for('transfers_page',tab='incoming') }}">Requests waiting for our approval</a> <span class="badge">{{ summary.awaiting_our_approval }}</span></li>
+    <li><a href="{{ url_for('transfers_page',tab='approved') }}">Approved, ready to ship</a> <span class="badge">{{ summary.ready_to_ship }}</span></li>
+    <li><a href="{{ url_for('transfers_page',tab='in_transit') }}">Deliveries to confirm received</a> <span class="badge">{{ summary.to_receive }}</span></li>
+    <li><a href="{{ url_for('transfers_page',tab='outgoing') }}">Our requests waiting for other banks</a> <span class="badge">{{ summary.waiting_for_others }}</span></li>
+    <li><a href="{{ url_for('offline_page') }}">Offline changes waiting to sync</a> <span class="badge">{{ summary.offline_pending }}</span></li>
+    <li><a href="{{ url_for('project_status') }}">Bank nodes online</a> <span class="badge">{{ summary.nodes_online }} of {{ summary.nodes_total }}</span></li>
+  </ul>
+</section>
+
+<section class="panel" id="alerts">
+  <h2>Important alerts</h2>
+  <ul class="plain-list">{% for alert in alerts[:8] %}<li><span class="tag tag-{{ 'warn' if alert.type in ['expired','low_stock'] else 'info' }}">{{ alert.type|replace('_',' ')|title }}</span> {{ alert.message }}</li>
+  {% else %}<li class="muted">No low-stock or expiration alerts right now.</li>{% endfor %}</ul>
+  {% if alerts|length > 8 %}<p class="small"><a href="{{ url_for('batches_page') }}">See all {{ alerts|length }} alerts on Batches and recalls</a></p>{% endif %}
+</section>
+</div>
+
+<section class="panel" id="quick-links">
+  <h2>Quick links</h2>
+  <div class="quick-links">
+    <a class="btn" href="{{ url_for('my_inventory_page') }}">My inventory</a>
+    <a class="btn" href="{{ url_for('matching_page') }}">Available supply matches</a>
+    <a class="btn" href="{{ url_for('transfers_page') }}">Transfers</a>
+    <a class="btn" href="{{ url_for('donations_page') }}">Donations and food waste</a>
+    <a class="btn" href="{{ url_for('other_banks_page') }}">Other food banks</a>
+    {% if role=='admin' %}<a class="btn" href="{{ url_for('admin_page') }}">Database administration</a>{% endif %}
+  </div>
+</section>
+
+<div class="grid-2">
+<section class="panel" id="notifications">
+  <h2>Notifications <span class="badge">{{ unread_count }} unread</span></h2>
+  {% if can_transfer and unread_count %}<form method="post" action="{{ url_for('read_notifications') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-small">Mark all read</button></form>{% endif %}
+  <ul class="plain-list">{% for n in notifications[:10] %}<li>{% if not n.is_read %}<span class="tag tag-info">New</span> {% endif %}{{ n.message }} <span class="small">{{ n.created_at }}</span></li>{% else %}<li class="muted">No notifications yet.</li>{% endfor %}</ul>
+</section>
+
+<section class="panel" id="activity">
+  <h2>Recent activity</h2>
+  <ul class="plain-list">{% for entry in activity[:10] %}<li>{{ entry.details }} <span class="small">{{ entry.created_at }}</span></li>{% else %}<li class="muted">No activity yet.</li>{% endfor %}</ul>
+</section>
+</div>
+{# Old links like /#inventory or /#matches from the single-page version go to the new pages. Fixed map only. #}
+<script>
+(function(){var map={'#inventory':'{{ url_for('my_inventory_page') }}','#other-inventories':'{{ url_for('other_banks_page') }}','#matches':'{{ url_for('matching_page') }}','#incoming':'{{ url_for('transfers_page',tab='incoming') }}','#outgoing':'{{ url_for('transfers_page',tab='outgoing') }}','#donations':'{{ url_for('donations_page') }}','#expiration':'{{ url_for('batches_page') }}','#forecast':'{{ url_for('more_page') }}#forecast','#csv':'{{ url_for('more_page') }}#csv','#offline':'{{ url_for('offline_page') }}','#barcode':'{{ url_for('more_page') }}#barcodes','#scheduling':'{{ url_for('transport_page') }}','#node-status':'{{ url_for('project_status') }}','#admin-tools':'{{ url_for('admin_page') }}','#audit':'{{ url_for('admin_page') }}#audit','#developer':'{{ url_for('more_page') }}#api'};
+var target=map[window.location.hash];if(target){window.location.replace(target);}})();
+</script>
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}More tools{% endblock %}
+{% block content %}
+{% set role = user.role if user else session.get('role') %}
+{% set can_edit = role in ['staff','manager','admin'] %}
+<div class="page-head">
+  <h1>More tools</h1>
+  <p class="lead">Smaller tools: spreadsheets, barcodes, physical counts, the usage forecast, analytics and API documentation{% if role=='admin' %}, plus the Test lab{% endif %}.</p>
+  <nav class="page-index" aria-label="Tools on this page"><a href="#csv">Spreadsheet import/export</a> · <a href="#barcodes">Barcodes</a> · <a href="#counts">Physical counts</a> · <a href="#forecast">Usage forecast</a> · <a href="#analytics">Analytics</a> · <a href="#api">API documentation</a>{% if role=='admin' %} · <a href="#lab">Test lab</a>{% endif %}</nav>
+</div>
+
+<div class="grid-2">
+<section class="panel" id="csv">
+<h2>Spreadsheet import / export</h2>
+<p>Columns: <code>name,unit,category,barcode,quantity,target,expiration_date</code>. Import checks up to 100 rows and saves all of them or none.</p>
+<p><a class="btn" href="{{ url_for('csv_export') }}">Download my inventory as CSV</a></p>
+{% if can_edit %}<form method="post" action="{{ url_for('csv_import') }}" enctype="multipart/form-data" class="formline">
+<input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Inventory CSV <input type="file" name="inventory_csv" accept=".csv,text/csv" required></label>
+<button class="btn">Import CSV</button>
+</form>{% endif %}
+</section>
+
+<section class="panel" id="barcodes">
+<h2>Barcodes</h2>
+<p>Type or scan a barcode with a USB scanner (it types like a keyboard).</p>
+<form class="formline" method="get" action="{{ url_for('lookup_barcode') }}"><label>Barcode <input name="barcode" placeholder="Example: RICE-001" required></label><button class="btn">Look up</button></form>
+{% if role=='admin' %}
+<h3>Assign a barcode to an item</h3>
+<form class="formline" method="post" action="{{ url_for('update_barcode') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Item ID <input type="number" min="1" name="item_id" required></label>
+<label>Barcode <input name="barcode" placeholder="RICE-001" required></label><button class="btn">Assign barcode</button></form>
+<p class="small">Item IDs of your own items: {% for item in inventory[:12] %}{{ item.item_name }} #{{ item.item_id }}{% if not loop.last %}, {% endif %}{% endfor %}{% if inventory|length > 12 %}, …{% endif %}. Any catalog item ID can be used.</p>
+{% endif %}
+</section>
+</div>
+
+<section class="panel" id="counts">
+<h2>Physical counts</h2>
+<p>Enter what is actually on the shelf. A manager approves or rejects it. A count is rejected if the item changed after it was entered, so an old count cannot overwrite newer numbers.</p>
+{% if can_edit %}
+<form class="formline" method="post" action="{{ url_for('advanced_action',action='count') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Item <select name="item_id">{% for item in inventory %}<option value="{{ item.item_id }}">{{ item.item_name }} (system {{ item.quantity }})</option>{% endfor %}</select></label>
+<label>Counted units <input name="counted_qty" type="number" min="0" required></label>
+<label>Notes <input name="reason" maxlength="200" required></label><button class="btn">Submit count</button></form>
+{% endif %}
+<div class="scroll"><table><thead><tr><th>#</th><th>Item</th><th>System</th><th>Shelf</th><th>Status</th><th></th></tr></thead><tbody>
+{% for r in reconciliations %}<tr><td>{{ r.id }}</td><td>{{ r.item_name }}</td><td>{{ r.expected_qty }}</td><td>{{ r.counted_qty }}</td><td>{{ r.status }}</td>
+<td>{% if r.status=='pending' and role in ['admin','manager'] %}{% for action in ['apply','reject'] %}<form class="short-form" method="post" action="{{ url_for('advanced_count_action',recon_id=r.id,action=action) }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-small{% if action=='apply' %} btn-primary{% endif %}">{{ action|capitalize }}</button></form>{% endfor %}{% endif %}</td></tr>
+{% else %}<tr><td colspan="6" class="empty">No counts recorded.</td></tr>{% endfor %}
+</tbody></table></div>
+</section>
+
+<div class="grid-2">
+<section class="panel" id="forecast">
+<h2>Usage forecast (simple estimate)</h2>
+<p class="small">Based on the last 30 days of shipments, waste and stock reductions. A basic trend, not a prediction of donations.</p>
+<div class="scroll"><table><thead><tr><th>Item</th><th>Usable now</th><th>Used in 30 days</th><th>Estimated days left</th></tr></thead><tbody>
+{% for f in forecast %}<tr><td>{{ f.item_name }}</td><td>{{ f.usable }}</td><td>{{ f.used_last_30_days }}</td><td>{{ f.days_remaining if f.days_remaining is not none else 'Not enough data' }}</td></tr>
+{% else %}<tr><td colspan="4" class="empty">No usage recorded in the last 30 days yet.</td></tr>{% endfor %}
+</tbody></table></div>
+</section>
+
+<section class="panel" id="analytics">
+<h2>Analytics</h2>
+<p class="small">Counts from the database. No estimated savings are claimed.</p>
+<ul class="plain-list">{% for key,value in analytics.items() %}<li>{{ key.replace('_',' ') }}: <strong>{{ value }}</strong></li>{% else %}<li class="muted">Analytics are not available right now.</li>{% endfor %}</ul>
+</section>
+</div>
+
+<section class="panel" id="api">
+<h2>API documentation</h2>
+<p>The central API has an interactive reference page: <a href="http://127.0.0.1:5000/docs">http://127.0.0.1:5000/docs</a>. The full written reference is <code>docs/API.md</code>.</p>
+</section>
+
+{% if role=='admin' %}
+<section class="panel" id="lab">
+<h2>Distributed System Test Lab (isolated)</h2>
+<p>Runs a fixed test scenario on temporary databases. It never changes the inventory shown in this application.</p>
+<form class="formline" method="post" action="{{ url_for('advanced_run_lab') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Scenario <select name="scenario"><option value="all">Run all scenarios</option>
+{% for key,label in lab_scenarios.items() %}<option value="{{ key }}">{{ key }}: {{ label }}</option>{% else %}{% for key in ['multi_bank','outage','concurrent','recall','reconciliation','delivery','backup_restore','offline_receipt'] %}<option value="{{ key }}">{{ key }}</option>{% endfor %}{% endfor %}
+</select></label><button class="btn btn-primary">Run isolated tests</button></form>
+{% if last_lab %}<p><strong>Results: {{ last_lab.passed }}/{{ last_lab.total }} passed</strong></p>
+<ul class="plain-list">{% for result in last_lab.results %}<li><span class="tag tag-{{ 'ok' if result.passed else 'bad' }}">{{ 'PASS' if result.passed else 'FAIL' }}</span> {{ result.scenario }} — {{ result.duration_ms }} ms{% if result.error %} {{ result.error }}{% endif %}</li>{% endfor %}</ul>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

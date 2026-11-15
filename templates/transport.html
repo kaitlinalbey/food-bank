@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Transportation{% endblock %}
+{% block content %}
+{% set role = user.role if user else session.get('role') %}
+{% set can_edit = role in ['staff','manager','admin'] %}
+{% set can_fleet = role in ['manager','admin','dispatcher'] %}
+{% set can_assign = role in ['staff','manager','admin','dispatcher'] %}
+<div class="page-head">
+  <h1>Transportation</h1>
+  <p class="lead">Schedule pickups and deliveries for approved transfers, keep track of drivers and vehicles, and record problems with deliveries. Cold-chain items need a refrigerated vehicle.</p>
+</div>
+
+<section class="panel" id="schedules">
+<h2>Pickup and delivery schedules</h2>
+{% if can_edit %}
+{% for ex in to_schedule %}
+<form class="formline" method="post" action="{{ url_for('set_schedule',exchange_id=ex.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<strong>Transfer #{{ ex.id }}: {{ ex.quantity }} {{ ex.item_name }} to {{ ex.destination_bank_name }}</strong>
+<label>Pickup (UTC) <input type="datetime-local" name="pickup_at" value="{{ (ex.pickup_at or '')[:16] }}" required></label>
+<label>Delivery (UTC) <input type="datetime-local" name="delivery_at" value="{{ (ex.delivery_at or '')[:16] }}" required></label>
+<label>Transport notes <input name="carrier_notes" maxlength="240" value="{{ ex.carrier_notes or '' }}"></label><button class="btn">Save schedule</button></form>
+{% else %}<p class="empty">No approved transfers to schedule. Transfers can be scheduled after we approve them and before they ship.</p>{% endfor %}
+{% endif %}
+<h3>Scheduled transfers</h3>
+<div class="scroll"><table><thead><tr><th>Transfer</th><th>Item</th><th>From → To</th><th>Status</th><th>Pickup (UTC)</th><th>Delivery (UTC)</th><th>Notes</th></tr></thead><tbody>
+{% for ex in scheduled %}<tr><td>#{{ ex.id }}</td><td>{{ ex.quantity }} {{ ex.item_name }}</td><td>{{ ex.source_bank_name }} → {{ ex.destination_bank_name }}</td><td>{{ ex.status|replace('_',' ') }}</td><td>{{ ex.pickup_at or '—' }}</td><td>{{ ex.delivery_at or '—' }}</td><td>{{ ex.carrier_notes or '' }}</td></tr>
+{% else %}<tr><td colspan="7" class="empty">Nothing scheduled yet.</td></tr>{% endfor %}
+</tbody></table></div>
+</section>
+
+<section class="panel" id="fleet">
+<h2>Drivers, vehicles and assignments</h2>
+<p class="small">Records contain display names and labels only.</p>
+{% if can_fleet %}
+<div class="grid-2">
+<form class="formline" method="post" action="{{ url_for('advanced_action',action='driver') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><label>Driver display name <input name="display_name" required></label><button class="btn">Add driver</button></form>
+<form class="formline" method="post" action="{{ url_for('advanced_action',action='vehicle') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Vehicle label <input name="label" required></label><label>Capacity (units) <input type="number" name="capacity_units" min="1" required></label>
+<label class="check"><input type="checkbox" name="refrigerated" value="on"> Refrigerated</label><button class="btn">Add vehicle</button></form>
+</div>
+{% endif %}
+<div class="grid-2">
+<div><h3>Drivers</h3><ul class="plain-list">{% for d in fleet.get('drivers',[]) %}<li>#{{ d.id }} {{ d.display_name }}</li>{% else %}<li class="muted">No drivers yet.</li>{% endfor %}</ul></div>
+<div><h3>Vehicles</h3><ul class="plain-list">{% for v in fleet.get('vehicles',[]) %}<li>#{{ v.id }} {{ v.label }} ({{ v.capacity_units }} units{% if v.refrigerated %}, refrigerated{% endif %})</li>{% else %}<li class="muted">No vehicles yet.</li>{% endfor %}</ul></div>
+</div>
+{% if can_assign %}
+<h3>Assign transport to an approved transfer</h3>
+<form class="formline" method="post" action="{{ url_for('advanced_action',action='transport') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Approved transfer ID <input type="number" name="exchange_id" min="1" required></label>
+<label>Driver ID <input type="number" name="driver_id" min="1" required></label>
+<label>Vehicle ID <input type="number" name="vehicle_id" min="1" required></label><button class="btn">Assign transport</button></form>
+{% endif %}
+<h3>Assignments</h3>
+<ul class="plain-list">{% for d in fleet.get('deliveries',[]) %}<li>Transfer #{{ d.exchange_id }} — {{ d.driver_name }} / {{ d.vehicle_label }} — {{ d.status }}</li>{% else %}<li class="muted">No assignments yet.</li>{% endfor %}</ul>
+</section>
+
+<section class="panel" id="discrepancies">
+<h2>Delivery problems (partial or damaged deliveries)</h2>
+<p>Only undamaged units that actually arrived are added to stock. Missing and damaged units are recorded here for review.</p>
+{% if can_edit %}
+{% if arriving %}<p class="small">Deliveries on the way to us: {% for ex in arriving %}#{{ ex.id }} ({{ ex.quantity }} {{ ex.item_name }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+<form class="formline" method="post" action="{{ url_for('advanced_action',action='receipt') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>In-transit transfer ID <input type="number" name="exchange_id" min="1" required></label>
+<label>Undamaged units received <input type="number" name="received_qty" min="0" required></label>
+<label>Damaged units <input type="number" name="damaged_qty" min="0" value="0" required></label>
+<label>Notes <input name="notes" maxlength="200" required></label><button class="btn">Confirm counted receipt</button></form>
+{% endif %}
+<div class="scroll"><table><thead><tr><th>Transfer</th><th>Received</th><th>Missing</th><th>Damaged</th><th>Status</th><th></th></tr></thead><tbody>
+{% for d in discrepancies %}<tr><td>#{{ d.exchange_id }}</td><td>{{ d.received_qty }}</td><td>{{ d.missing_qty }}</td><td>{{ d.damaged_qty }}</td><td>{{ d.status }}</td>
+<td>{% if d.status=='open' and role in ['admin','manager'] %}<form class="short-form" method="post" action="{{ url_for('advanced_discrepancy',issue_id=d.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-small">Mark reviewed</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="6" class="empty">No delivery problems recorded.</td></tr>{% endfor %}
+</tbody></table></div>
+</section>
+{% endblock %}

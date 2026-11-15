@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Batches and recalls{% endblock %}
+{% block content %}
+{% set role = user.role if user else session.get('role') %}
+{% set can_edit = role in ['staff','manager','admin'] %}
+{% set view_labels = {'all':'All batches','expiring':'Expiring within 7 days','expired':'Expired','recalled':'Recalled'} %}
+<div class="page-head">
+  <h1>Batches, expiration and recalls</h1>
+  <p class="lead">Every donation or delivery is stored as a batch with its own expiration date and batch code. Expired and recalled batches are never offered to other banks or shipped.</p>
+</div>
+
+<section class="panel" id="alerts">
+<h2>Alerts</h2>
+<ul class="plain-list">{% for alert in alerts %}<li><span class="tag tag-{{ 'bad' if alert.type=='expired' else 'warn' }}">{{ alert.type|replace('_',' ')|title }}</span> {{ alert.message }}</li>
+{% else %}<li class="muted">No low-stock or expiration alerts.</li>{% endfor %}</ul>
+</section>
+
+<section class="panel" id="batches">
+<h2>Batches in stock</h2>
+<nav class="inventory-tabs" aria-label="Filter batches">
+{% for v in lot_views %}<a href="{{ url_for('batches_page',lots=v) }}" {% if lot_view==v %}aria-current="page"{% endif %}>{{ view_labels[v] }} <span class="badge">{{ lot_counts[v] }}</span></a>{% endfor %}
+</nav>
+<div class="scroll"><table><thead><tr><th>Batch ID</th><th>Item</th><th>Qty</th><th>Batch code</th><th>Expires</th><th>Condition</th></tr></thead><tbody>
+{% for lot in lots %}<tr><td>{{ lot.id }}</td><td>{{ lot.item_name }} <span class="small">({{ lot.unit }})</span></td><td>{{ lot.quantity }}</td><td class="small">{{ lot.lot_code }}</td>
+<td>{{ lot.expiration_date or 'Not recorded' }}{% if lot.days_left is not none and lot.days_left >= 0 %} <span class="small">({{ lot.days_left }} days)</span>{% endif %}</td>
+<td>{% if lot.state=='recalled' %}<span class="tag tag-bad">Recalled</span>{% elif lot.state=='expired' %}<span class="tag tag-bad">Expired</span>{% elif lot.state=='expiring' %}<span class="tag tag-warn">Expiring soon</span>{% else %}<span class="tag tag-ok">OK</span>{% endif %}</td></tr>
+{% else %}<tr><td colspan="6" class="empty">No batches in "{{ view_labels[lot_view] }}".</td></tr>{% endfor %}
+</tbody></table></div>
+{% if can_edit %}
+<h3>Change one batch's expiration date</h3>
+<form class="formline" method="post" action="{{ url_for('set_lot_expiry',lot_id=0) }}" id="lot-form">
+<input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Batch ID <input name="lot_id_entry" type="number" min="1" required></label>
+<label>New expiration date <input name="expiration_date" type="date"></label>
+<button class="btn">Update batch expiry</button></form>
+<script>document.getElementById('lot-form').addEventListener('submit',function(){this.action=this.action.replace('/0/expiry','/'+encodeURIComponent(this.elements.lot_id_entry.value)+'/expiry')})</script>
+<p class="small">This changes one batch only. Leave the date blank to remove it.</p>
+{% endif %}
+</section>
+
+<section class="panel" id="recalls">
+<h2>Recalls</h2>
+<p>A recall quarantines every batch with that batch code at every bank. Quarantined stock stays in the records but cannot be matched, shipped or used.</p>
+{% if role=='admin' %}
+<form class="formline" method="post" action="{{ url_for('advanced_action',action='recall') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Item ID <input name="item_id" type="number" min="1" required></label>
+<label>Batch code <input name="lot_code" maxlength="60" required></label>
+<label>Reason <input name="reason" required maxlength="200"></label><button class="btn btn-danger">Issue recall</button></form>
+{% endif %}
+<div class="scroll"><table><thead><tr><th>#</th><th>Item</th><th>Batch code</th><th>Status</th><th>Reason</th><th></th></tr></thead><tbody>
+{% for r in recalls %}<tr><td>{{ r.id }}</td><td>{{ r.item_name }}</td><td>{{ r.lot_code }}</td><td><span class="tag tag-{{ 'bad' if r.status=='active' else 'ok' }}">{{ r.status }}</span></td><td>{{ r.reason }}</td>
+<td>{% if role=='admin' and r.status=='active' %}<form method="post" class="short-form" action="{{ url_for('advanced_close_recall',recall_id=r.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-small">Close recall</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="6" class="empty">No recalls affect this bank.</td></tr>{% endfor %}
+</tbody></table></div>
+</section>
+
+<section class="panel" id="storage">
+<h2>Storage zones</h2>
+<div class="scroll"><table><thead><tr><th>Zone</th><th>Used (units)</th><th>Capacity (units)</th></tr></thead><tbody>
+{% for z in storage %}<tr><td>{{ z.storage_type }}</td><td>{{ z.occupied_units }}</td><td>{{ z.capacity_units }}</td></tr>
+{% else %}<tr><td colspan="3" class="empty">Storage information is not available right now.</td></tr>{% endfor %}
+</tbody></table></div>
+{% if role in ['admin','manager'] %}
+<form class="formline" method="post" action="{{ url_for('advanced_action',action='storage') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Zone <select name="storage_type"><option>ambient</option><option>refrigerated</option><option>frozen</option></select></label>
+<label>Maximum units <input type="number" min="0" name="capacity_units" required></label><button class="btn">Set capacity</button></form>
+{% endif %}
+{% if role=='admin' %}
+<form class="formline" method="post" action="{{ url_for('advanced_action',action='item_storage') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Item ID <input name="item_id" type="number" min="1" required></label>
+<label>Storage rule <select name="storage_type"><option>ambient</option><option>refrigerated</option><option>frozen</option></select></label><button class="btn">Update item storage type</button></form>
+{% endif %}
+</section>
+{% endblock %}

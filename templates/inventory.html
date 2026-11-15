@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}My inventory{% endblock %}
+{% block content %}
+{# Defaults keep this template renderable on its own (tests render it directly). #}
+{% set own_filters = own_filters|default({'q':'','category':'','status':'all'}) %}
+{% set visible_inventory = visible_inventory|default(inventory) %}
+{% set own_categories = own_categories|default([]) %}
+{% set sort = sort|default('name') %}
+{% set role = user.role if user else session.get('role') %}
+{% set can_edit = role in ['staff','manager','admin'] %}
+{% set editing = inventory_edit and can_edit %}
+{% set keep = {'q':own_filters.q,'category':own_filters.category,'status':own_filters.status} %}
+<div class="page-head">
+  <h1>My inventory</h1>
+  <p class="lead">Stock at {{ bank_name }}. {% if can_edit %}View is read-only; use <strong>Edit Inventory</strong> to change quantities, targets and items.{% else %}Your role can view this inventory but not change it.{% endif %}</p>
+</div>
+
+<section id="inventory">
+<nav class="inventory-tabs" aria-label="Inventory view mode">
+<a href="{{ url_for('my_inventory_page',sort=sort,**keep) }}" {% if not editing %}aria-current="page"{% endif %}>View Inventory</a>
+{% if can_edit %}<a href="{{ url_for('my_inventory_page',inventory='edit',sort=sort,**keep) }}" {% if editing %}aria-current="page"{% endif %}>Edit Inventory</a>{% endif %}
+</nav>
+<form method="get" action="{{ url_for('my_inventory_page') }}" class="formline inventory-filters" role="search" aria-label="Search my inventory">
+{% if editing %}<input type="hidden" name="inventory" value="edit">{% endif %}
+<input type="hidden" name="sort" value="{{ sort }}">
+<label>Search inventory
+<input type="search" name="q" value="{{ own_filters.q }}" placeholder="Item, category, or unit" maxlength="100"></label>
+<label>Category
+<select name="category"><option value="">All categories</option>
+{% for category in own_categories %}<option value="{{ category }}" {% if own_filters.category|lower == category|lower %}selected{% endif %}>{{ category }}</option>{% endfor %}
+</select></label>
+<label>Stock filter
+<select name="status">
+{% for value,label in [('all','All items'),('in_stock','In stock'),('out_of_stock','Out of stock'),('shortage','Shortages'),('surplus','Surplus'),('expired','Expired / unusable'),('at_target','At target')] %}
+<option value="{{ value }}" {% if own_filters.status==value %}selected{% endif %}>{{ label }}</option>
+{% endfor %}
+</select></label>
+<button type="submit" class="btn">Search / Filter</button>
+<a class="btn btn-ghost" href="{{ url_for('my_inventory_page',inventory='edit') if editing else url_for('my_inventory_page') }}">Clear filters</a>
+</form>
+<p class="small" role="status">Showing {{ visible_inventory|length }} of {{ inventory|length }} items, sorted by {{ sort }}.</p>
+{% if not editing %}
+<div class="scroll"><table>
+<thead><tr>
+{% for key,label in [('name','Item'),('category','Category'),('quantity','In stock')] %}<th>{% if sort==key %}{{ label }} &#9660;{% else %}<a href="{{ url_for('my_inventory_page',sort=key,**keep) }}">{{ label }}</a>{% endif %}</th>{% endfor %}
+<th>Target</th><th>Usable stock</th><th>Reserved</th>
+{% for key,label in [('surplus','Surplus'),('shortage','Shortage'),('expiration','Next expiration')] %}<th>{% if sort==key %}{{ label }} &#9660;{% else %}<a href="{{ url_for('my_inventory_page',sort=key,**keep) }}">{{ label }}</a>{% endif %}</th>{% endfor %}
+<th>Condition</th></tr></thead>
+<tbody>
+{% for item in visible_inventory %}
+<tr>
+<td><strong>{{ item.item_name }}</strong><span class="small"> ({{ item.unit }})</span></td>
+<td>{{ item.category }}</td>
+<td>{{ item.quantity }}</td><td>{{ item.target }}</td><td>{{ item.usable }}</td>
+<td>{{ item.reserved }}</td><td>{{ item.surplus }}</td><td>{{ item.shortage }}</td>
+<td>{{ item.expiration_date or 'Not recorded' }}</td>
+<td>{% if item.expired %}<span class="tag tag-bad">Expired / Unusable</span>{% elif item.shortage > 0 %}<span class="tag tag-warn">Shortage</span>{% elif item.surplus > 0 %}<span class="tag tag-ok">Surplus</span>{% else %}<span class="tag">At target</span>{% endif %}
+<span class="small">({{ item.lot_count }} active batch{% if item.lot_count != 1 %}es{% endif %})</span></td>
+</tr>
+{% else %}<tr><td colspan="10" class="empty">{% if inventory %}No items match your search and filters. Try another word or <a href="{{ url_for('my_inventory_page') }}">clear the filters</a>.{% else %}This bank has no inventory items yet.{% if can_edit %} Select Edit Inventory to add one.{% endif %}{% endif %}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% else %}
+<p class="note">Edit mode: approved transfers reserve stock, so quantity cannot go below the reserved amount. Items with several batches have their expiration dates changed on <a href="{{ url_for('batches_page') }}">Batches and recalls</a>.</p>
+<div class="scroll"><table>
+<thead><tr><th>Item / category</th><th>Qty / target / expiration</th><th>Surplus</th><th>Need</th><th>Actions</th></tr></thead>
+<tbody>
+{% for item in visible_inventory %}
+<tr>
+<td>{{ item.item_name }} ({{ item.unit }})<p class="small">{{ item.category }}{% if item.expired %} — EXPIRED{% endif %}</p></td>
+<td><form method="post" action="{{ url_for('save_inventory') }}" class="formline">
+<input type="hidden" name="_csrf" value="{{ csrf_token }}"><input type="hidden" name="item_id" value="{{ item.item_id }}"><input type="hidden" name="q" value="{{ own_filters.q }}"><input type="hidden" name="category" value="{{ own_filters.category }}"><input type="hidden" name="status" value="{{ own_filters.status }}"><input type="hidden" name="sort" value="{{ sort }}">
+<label>Qty <input type="number" name="quantity" min="0" value="{{ item.quantity }}" required></label>
+<label>Target <input type="number" name="target" min="0" value="{{ item.target }}" required></label>
+<label>Expiration <input type="date" name="expiration_date" value="{{ item.expiration_date or '' }}"></label>
+<button class="btn btn-small">Save</button></form></td>
+<td>{{ item.surplus }}{% if item.reserved %} <span class="small">({{ item.reserved }} reserved)</span>{% endif %}</td>
+<td>{{ item.shortage }}</td>
+<td><form method="post" action="{{ url_for('remove_inventory',item_id=item.item_id) }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ own_filters.q }}"><input type="hidden" name="category" value="{{ own_filters.category }}"><input type="hidden" name="status" value="{{ own_filters.status }}"><input type="hidden" name="sort" value="{{ sort }}"><button class="btn btn-small btn-danger">Remove</button></form><span class="small">Set quantity to 0 first</span></td>
+</tr>
+{% else %}<tr><td colspan="5" class="empty">No matching items. Clear the filters above or add an item below.</td></tr>
+{% endfor %}
+</tbody></table></div>
+<h2>Add item</h2>
+<form class="formline" method="post" action="{{ url_for('add_inventory') }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token }}">
+{# No hidden "category" filter here: the item's own Category field below uses that name. #}
+<input type="hidden" name="q" value="{{ own_filters.q }}"><input type="hidden" name="status" value="{{ own_filters.status }}"><input type="hidden" name="sort" value="{{ sort }}">
+<label>Name <input name="name" required placeholder="Example: Rice"></label>
+<label>Unit <input name="unit" required value="boxes"></label>
+<label>Category <input name="category" required value="Other"></label>
+<label>Quantity <input type="number" min="0" name="quantity" value="0" required></label>
+<label>Target <input type="number" min="0" name="target" value="10" required></label>
+<label>Expiration <input type="date" name="expiration_date"></label>
+<button class="btn btn-primary">Add</button>
+</form>
+{% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Offline{% endblock %}
+{% block content %}
+{# Shown (HTTP 503) instead of any page when the central API cannot be reached. #}
+<div class="page-head">
+  <h1>Bank node is offline</h1>
+  <p role="alert" class="alert alert-error">{{ message }}</p>
+</div>
+<section class="panel">
+<p>This page cannot load live data right now. The last saved inventory is shown below. Changes can still be saved on this computer and sent later from <a href="{{ url_for('offline_page') }}">Offline sync</a>.</p>
+{% if simulated and outage_controls %}<form method="post" action="{{ url_for('simulate_offline') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-primary">Restore simulated connection</button></form>
+{% elif simulated %}<p class="note">This is a simulated outage for the classroom demo. An administrator can restore the connection.</p>
+{% else %}<p><a class="btn" href="{{ request.path if request else '/' }}">Retry central API connection</a></p>{% endif %}
+</section>
+{% if snapshot %}
+<section class="panel">
+<h2>Last saved inventory snapshot</h2>
+<div class="scroll"><table><thead><tr><th>Item</th><th>Last known qty</th><th>Version</th></tr></thead><tbody>
+{% for i in snapshot.inventory %}<tr><td>{{ i.item_name }}</td><td>{{ i.quantity }}</td><td>{{ i.version }}</td></tr>{% endfor %}
+</tbody></table></div>
+<h2>Save an adjustment locally</h2>
+<form class="formline" method="post" action="{{ url_for('queue_offline') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Item <select name="item_id">{% for i in snapshot.inventory %}<option value="{{ i.item_id }}">{{ i.item_name }}</option>{% endfor %}</select></label>
+<label>Quantity adjustment (+/-) <input name="delta" type="number" value="1" required></label>
+<button class="btn">Save adjustment locally</button></form>
+<form method="post" action="{{ url_for('synchronize_offline') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-primary">Attempt sync</button></form>
+<h2>Queued changes</h2>
+<ul class="plain-list">{% for entry in queue %}<li>{{ entry.item_name }}: {{ '%+d'|format(entry.delta) }} ({{ entry.status }})
+{% if entry.error %}{{ entry.error }}{% endif %}
+<form method="post" class="short-form" action="{{ url_for('discard_offline',row_id=entry.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-small">Discard</button></form></li>
+{% else %}<li class="muted">No locally queued changes.</li>{% endfor %}</ul>
+</section>
+{% else %}<section class="panel"><p class="empty">No inventory snapshot is stored yet. Connect once before testing offline changes.</p></section>{% endif %}
+<section class="panel">
+<h2>Queue an independent donation receipt offline</h2>
+<form class="formline" method="post" action="{{ url_for('advanced_queue_receipt') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label>Item <select name="item_id">{% for i in (snapshot.inventory if snapshot else []) %}<option value="{{ i.item_id }}">{{ i.item_name }}</option>{% endfor %}</select></label>
+<label>Quantity <input name="quantity" type="number" min="1" required></label>
+<label>Donor <input name="donor" value="Offline donation" required></label>
+<label>Expiration <input type="date" name="expiration_date"></label><button class="btn">Queue separate receipt</button></form>
+<ul class="plain-list">{% for r in receipt_queue %}<li>{{ r.item_name }} +{{ r.quantity }}: {{ r.status }}</li>{% endfor %}</ul>
+<p class="small">After reconnecting, open <a href="{{ url_for('offline_page',_anchor='receipts') }}">Offline sync</a> to send queued receipts.</p>
+</section>
+{% endblock %}

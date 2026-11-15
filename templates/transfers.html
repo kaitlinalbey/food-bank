@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Transfers{% endblock %}
+{% block content %}
+{% set role = user.role if user else session.get('role') %}
+{% set can_transfer = role in ['staff','manager','admin','dispatcher'] %}
+{% set labels = {'all':'All','incoming':'Requests to us','outgoing':'Our requests','pending':'Pending','approved':'Approved','in_transit':'In transit','completed':'Completed'} %}
+<div class="page-head">
+  <h1>Transfers</h1>
+  <p class="lead">Requests between banks. The supplying bank approves (stock is reserved), then ships (stock leaves). The requesting bank confirms receipt (stock arrives). New requests are made on <a href="{{ url_for('matching_page') }}">Supply matching</a>.</p>
+</div>
+<section class="panel" id="transfers">
+<nav class="inventory-tabs" aria-label="Filter transfers">
+{% for t in tabs %}<a href="{{ url_for('transfers_page',tab=t) }}" {% if tab==t %}aria-current="page"{% endif %}>{{ labels[t] }} <span class="badge">{{ counts[t] }}</span></a>{% endfor %}
+</nav>
+{% if transfers %}
+<div class="scroll"><table><thead><tr><th>ID</th><th>Direction</th><th>Other bank</th><th>Item</th><th>Qty</th><th>Status</th><th>Last update</th><th>Next action</th></tr></thead><tbody>
+{% for ex in transfers %}<tr>
+<td>#{{ ex.id }}</td>
+<td>{% if ex.direction=='incoming' %}We supply{% else %}We requested{% endif %}</td>
+<td>{{ ex.destination_bank_name if ex.direction=='incoming' else ex.source_bank_name }}</td>
+<td>{{ ex.item_name }}</td><td>{{ ex.quantity }}</td>
+<td><span class="tag tag-{{ {'pending':'info','approved':'attn','in_transit':'attn','received':'ok','declined':'bad','canceled':'bad'}[ex.status] }}">{{ ex.status|replace('_',' ') }}</span></td>
+<td class="small">{{ ex.updated_at }}</td>
+<td>
+{% if not can_transfer %}—
+{% elif ex.direction=='incoming' and ex.status=='pending' %}
+{% for action in ['approve','decline'] %}<form class="short-form" method="post" action="{{ url_for('change_exchange',exchange_id=ex.id,action=action) }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-small{% if action=='approve' %} btn-primary{% endif %}">{{ action|capitalize }}</button></form>{% endfor %}
+{% elif ex.direction=='incoming' and ex.status=='approved' %}
+<form class="short-form" method="post" action="{{ url_for('change_exchange',exchange_id=ex.id,action='ship') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-small btn-primary">Mark shipped</button></form>
+{% elif ex.direction=='incoming' and ex.status=='in_transit' %}<span class="small">Waiting for the other bank to confirm receipt</span>
+{% elif ex.direction=='outgoing' and ex.status in ['pending','approved'] %}
+<form class="short-form" method="post" action="{{ url_for('change_exchange',exchange_id=ex.id,action='cancel') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-small">Cancel</button></form>
+{% elif ex.direction=='outgoing' and ex.status=='in_transit' %}
+<form class="short-form" method="post" action="{{ url_for('change_exchange',exchange_id=ex.id,action='receive') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn btn-small btn-primary">Confirm received</button></form>
+<a class="small" href="{{ url_for('transport_page',_anchor='discrepancies') }}">Damaged or missing items?</a>
+{% else %}—{% endif %}
+</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}<p class="empty">{% if tab=='all' %}No transfers yet. Use <a href="{{ url_for('matching_page') }}">Supply matching</a> to request items another bank can share.{% else %}No transfers in "{{ labels[tab] }}".{% endif %}</p>{% endif %}
+</section>
+{% endblock %}
