@@ -1,8 +1,11 @@
 from functools import wraps
 
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from db import get_db, transaction
 
 def hash_password(password):
-    raise NotImplementedError
+    return generate_password_hash(password)
 
 
 def check_password(password_hash, password):

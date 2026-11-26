@@ -1,11 +1,11 @@
-from flask import Blueprint
+from flask import Blueprint, jsonify
 
 bp = Blueprint('auth', __name__)
 
 
 @bp.get('/api/health')
 def health():
-    raise NotImplementedError
+    return jsonify(status="ok")
 
 
 @bp.post('/api/login')
