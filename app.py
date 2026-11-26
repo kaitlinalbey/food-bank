@@ -2,11 +2,7 @@ from flask import Flask, jsonify
 from werkzeug.exceptions import HTTPException
 
 import db
-
-class APIError(Exception):
-    def __init__(self, message, status=400):
-        super().__init__(message)
-        self.status = status
+from errors import APIError
 
 
 def create_app(db_path=None):
