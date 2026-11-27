@@ -9,7 +9,8 @@ from urllib.request import Request,urlopen
 
 from functools import wraps
 from flask import Flask,Response,abort,flash,redirect,render_template,request,session,url_for
-from pathlib import Path
+from pathlib import Pathlib import Path
+from werkzeug.exceptions import HTTPException
 from inventory_filters import parse_filters,filter_inventory,categories_for
 from offline_queue import (save_snapshot,get_snapshot,enqueue,all_queue,sync_pending,discard,
     enqueue_receipt,all_receipts,sync_receipts,discard_receipt,log_local_event,local_events)
@@ -56,6 +57,19 @@ LOOPBACK_ADDRESSES=('127.0.0.1','::1','::ffff:127.0.0.1')
 def _demo_mode_enabled():
     return os.environ.get('FOOD_BANK_DEMO_MODE','').strip().lower() in ('1','true','yes','on')
 
+def _enrich_own_inventory(rows):
+    """Normalize central inventory rows with numeric shortage/surplus fields for UI templates."""
+    enriched = []
+    for row in rows:
+        item = dict(row)
+        qty = item.get('quantity', 0)
+        min_lvl = item.get('min_level', 0)
+        max_lvl = item.get('max_level', 0)
+        item['shortage'] = max(0, min_lvl - qty)
+        item['surplus'] = max(0, qty - max_lvl)
+        item.setdefault('expiration_date', None)
+        enriched.append(item)
+    return enriched
 
 def create_node_app(bank_id,api_url='http://127.0.0.1:5000',queue_path=None,outage_simulation=None):
     if not 1<=bank_id<=100:
@@ -143,6 +157,7 @@ def create_node_app(bank_id,api_url='http://127.0.0.1:5000',queue_path=None,outa
             if not key or not secrets.compare_digest(request.form.get('_csrf',''),key):
                 abort(400,'Invalid form token. Reload the page and try again.')
 
+
     @app.get('/node-health')
     def node_health():
         if app.config['SIMULATED_API_OFFLINE']:
@@ -160,6 +175,11 @@ def create_node_app(bank_id,api_url='http://127.0.0.1:5000',queue_path=None,outa
                 'username':request.form.get('username','staff'),
                 'password':request.form.get('password','')})
             if result['bank_id']!=bank_id:
+                # Revoke the minted token before rejecting the wrong-bank login.
+                try:
+                    api_call(app.config['API_URL'], 'POST', '/api/logout', token=result['token'])
+                except APIError:
+                    pass
                 raise APIError(403,'This account belongs to a different bank.')
             session.clear()
             session.update({'token':result['token'],'username':result['username'],'role':result['role'],
@@ -205,9 +225,53 @@ def create_node_app(bank_id,api_url='http://127.0.0.1:5000',queue_path=None,outa
         return wrapper
 
     def dashboard_data():
-        """Main bank data from the API. Every successful load refreshes the offline snapshot."""
-        data=call('GET','/api/dashboard')
-        save_snapshot(app.config['OFFLINE_DB'],data)
+        """Assemble main bank data from the central REST endpoints and refresh offline snapshot."""
+        inv_resp = call('GET', f'/api/banks/{bank_id}/inventory')
+        inventory = _enrich_own_inventory(inv_resp.get('inventory', []))
+        exchanges = call('GET', '/api/exchanges').get('exchanges', [])
+        notif_resp = optional('/api/notifications', {'notifications': [], 'unread_count': 0})
+        matches_resp = optional('/api/matches', {'matches': []})
+        banks = optional('/api/banks', {'banks': []}).get('banks', [])
+
+        bank_info = next((b for b in banks if b['id'] == bank_id), {'id': bank_id, 'name': bank_name})
+        incoming = [e for e in exchanges if e['supplier_bank_id'] == bank_id]
+        outgoing = [e for e in exchanges if e['requester_bank_id'] == bank_id]
+
+        data = {
+            'bank': bank_info,
+            'inventory': inventory,
+            'incoming': incoming,
+            'outgoing': outgoing,
+            'notifications': notif_resp.get('notifications', []),
+            'unread_notifications': notif_resp.get('unread_count', 0),
+            'matches': matches_resp.get('matches', []),
+            'banks': banks,
+        }
+        save_snapshot(app.config['OFFLINE_DB'], data)
+        return datadef dashboard_data():
+        """Assemble main bank data from the central REST endpoints and refresh offline snapshot."""
+        inv_resp = call('GET', f'/api/banks/{bank_id}/inventory')
+        inventory = _enrich_own_inventory(inv_resp.get('inventory', []))
+        exchanges = call('GET', '/api/exchanges').get('exchanges', [])
+        notif_resp = optional('/api/notifications', {'notifications': [], 'unread_count': 0})
+        matches_resp = optional('/api/matches', {'matches': []})
+        banks = optional('/api/banks', {'banks': []}).get('banks', [])
+
+        bank_info = next((b for b in banks if b['id'] == bank_id), {'id': bank_id, 'name': bank_name})
+        incoming = [e for e in exchanges if e['supplier_bank_id'] == bank_id]
+        outgoing = [e for e in exchanges if e['requester_bank_id'] == bank_id]
+
+        data = {
+            'bank': bank_info,
+            'inventory': inventory,
+            'incoming': incoming,
+            'outgoing': outgoing,
+            'notifications': notif_resp.get('notifications', []),
+            'unread_notifications': notif_resp.get('unread_count', 0),
+            'matches': matches_resp.get('matches', []),
+            'banks': banks,
+        }
+        save_snapshot(app.config['OFFLINE_DB'], data)
         return data
 
     def optional(route,default):
@@ -282,27 +346,6 @@ def create_node_app(bank_id,api_url='http://127.0.0.1:5000',queue_path=None,outa
                                own_filters=own_filters,own_categories=categories_for(data['inventory']),sort=sort,
                                inventory_edit=request.args.get('inventory')=='edit',bank=data['bank'],user=current_user())
 
-    @app.get('/other-banks')
-    @page
-    def other_banks_page():
-        # The bank chooser never combines stock from several banks. The API removes
-        # other banks' private totals before this node receives any data.
-        other_banks=[b for b in call('GET','/api/banks')['banks'] if b['id']!=bank_id]
-        requested=request.args.get('other_bank',type=int)
-        selected=next((b for b in other_banks if b['id']==requested),other_banks[0] if other_banks else None)
-        other_filters=parse_filters(request.args.get('other_q'),request.args.get('other_category'),
-                                    request.args.get('other_status'),shared=True)
-        rows,other_error=[],None
-        if selected:
-            try:
-                rows=call('GET',f'/api/banks/{selected["id"]}/inventory')['inventory']
-            except APIError as exc:
-                if exc.status==401:raise
-                other_error='This food bank\'s inventory is temporarily unavailable: '+str(exc)
-        visible,sort=sort_rows(filter_inventory(rows,other_filters,shared=True),request.args.get('other_sort'),OTHER_SORTS)
-        return render_template('other_banks.html',other_banks=other_banks,selected_bank=selected,
-                               other_inventory=visible,other_total=len(rows),other_filters=other_filters,
-                               other_categories=categories_for(rows),other_error=other_error,sort=sort,user=current_user())
 
     @app.get('/matching')
     @page
@@ -330,49 +373,6 @@ def create_node_app(bank_id,api_url='http://127.0.0.1:5000',queue_path=None,outa
         return render_template('transfers.html',transfers=[e for e in rows if match(e,tab)],tab=tab,counts=counts,
                                tabs=TRANSFER_TABS,user=current_user())
 
-    @app.get('/donations')
-    @page
-    def donations_page():
-        data=dashboard_data()
-        return render_template('donations.html',inventory=data['inventory'],
-                               donations=optional('/api/donations',{}).get('donations',data.get('recent_donations',[])),
-                               waste=optional('/api/waste',{}).get('waste',data.get('recent_waste',[])),
-                               donors=optional('/api/donors',{}).get('donors',[]),user=current_user())
-
-    LOT_VIEWS=('all','expiring','expired','recalled')
-
-    @app.get('/batches')
-    @page
-    def batches_page():
-        from datetime import date
-        data=dashboard_data()
-        today=date.today()
-        lots=[]
-        for lot in optional('/api/lots',{}).get('lots',[]):
-            days=None
-            if lot.get('expiration_date'):
-                try:days=(date.fromisoformat(lot['expiration_date'])-today).days
-                except ValueError:days=None
-            state='recalled' if lot.get('recalled') else 'expired' if days is not None and days<0 else \
-                  'expiring' if days is not None and days<=7 else 'ok'
-            lots.append(dict(lot,days_left=days,state=state))
-        view=request.args.get('lots') if request.args.get('lots') in LOT_VIEWS else 'all'
-        shown=[l for l in lots if view=='all' or l['state']==view]
-        counts={v:(len(lots) if v=='all' else sum(l['state']==v for l in lots)) for v in LOT_VIEWS}
-        return render_template('batches.html',lots=shown,lot_view=view,lot_counts=counts,lot_views=LOT_VIEWS,
-                               alerts=data.get('alerts',[]),recalls=optional('/api/recalls',{}).get('recalls',[]),
-                               storage=optional('/api/storage',{}).get('storage',[]),user=current_user())
-
-    @app.get('/transport')
-    @page
-    def transport_page():
-        data=dashboard_data()
-        return render_template('transport.html',
-                               to_schedule=[e for e in data['incoming'] if e['status']=='approved'],
-                               scheduled=[e for e in data['incoming']+data['outgoing'] if e.get('pickup_at') or e.get('delivery_at')],
-                               arriving=[e for e in data['outgoing'] if e['status']=='in_transit'],
-                               fleet=optional('/api/transport',{}),
-                               discrepancies=optional('/api/discrepancies',{}).get('discrepancies',[]),user=current_user())
 
     @app.get('/offline')
     def offline_page():
@@ -393,46 +393,7 @@ def create_node_app(bank_id,api_url='http://127.0.0.1:5000',queue_path=None,outa
                              user=current_user())
         return (html,200) if online else (html,503)
 
-    @app.get('/more')
-    @page
-    def more_page():
-        data=dashboard_data()
-        is_admin=session.get('role')=='admin'
-        return render_template('more.html',inventory=data['inventory'],forecast=data.get('forecast',[]),
-                               reconciliations=optional('/api/reconciliations',{}).get('reconciliations',[]),
-                               analytics=optional('/api/analytics',{}).get('metrics',{}),
-                               lab_scenarios=optional('/api/admin/lab/scenarios',{}).get('scenarios',{}) if is_admin else {},
-                               last_lab=session.pop('last_lab',None),user=current_user())
-
-    @app.get('/advanced')
-    def advanced_page():
-        # The former "Additional features" page was split into dedicated pages. Old links
-        # (and their #section bookmarks) land here and are forwarded by a fixed map.
-        if not session.get('token'):
-            return redirect(url_for('login_page'))
-        return render_template('moved.html',user=current_user())
-
-    # After a form is submitted, return to the page (and section) the form belongs to.
-    # Targets come only from these fixed tables, never from user input.
-    RETURN_PAGES={'request_transfer':('transfers_page',{'tab':'outgoing'},None),
-                  'read_notifications':('home',{},'notifications'),
-                  'record_donation':('donations_page',{},'records'),'record_waste':('donations_page',{},'waste'),
-                  'set_lot_expiry':('batches_page',{},'batches'),'set_schedule':('transport_page',{},'schedules'),
-                  'update_barcode':('more_page',{},'barcodes'),'lookup_barcode':('more_page',{},'barcodes'),
-                  'add_bank':('admin_page',{},'banks'),'add_user':('admin_page',{},'users'),
-                  'csv_import':('more_page',{},'csv'),'csv_export':('more_page',{},'csv'),
-                  'queue_offline':('offline_page',{},'queue'),'synchronize_offline':('offline_page',{},'queue'),
-                  'discard_offline':('offline_page',{},'queue'),'simulate_offline':('offline_page',{},None),
-                  'advanced_close_recall':('batches_page',{},'recalls'),'advanced_count_action':('more_page',{},'counts'),
-                  'advanced_discrepancy':('transport_page',{},'discrepancies'),
-                  'advanced_queue_receipt':('offline_page',{},'receipts'),'advanced_sync_receipts':('offline_page',{},'receipts'),
-                  'advanced_discard_receipt':('offline_page',{},'receipts'),'advanced_run_lab':('more_page',{},'lab')}
-    ADVANCED_ACTION_PAGES={'donor':('donations_page','donors'),'recall':('batches_page','recalls'),
-                           'storage':('batches_page','storage'),'item_storage':('batches_page','storage'),
-                           'count':('more_page','counts'),'driver':('transport_page','fleet'),
-                           'vehicle':('transport_page','fleet'),'transport':('transport_page','fleet'),
-                           'receipt':('transport_page','discrepancies')}
-
+    
     def back(page_name=None):
         endpoint=request.endpoint
         action=(request.view_args or {}).get('action')
@@ -469,7 +430,14 @@ def create_node_app(bank_id,api_url='http://127.0.0.1:5000',queue_path=None,outa
     def save_inventory():
         try:
             item_id=int(request.form['item_id'])
-            data={k:request.form.get(k,'') for k in ('quantity','target','expiration_date')}
+            data={}
+            for field in ('quantity', 'min_level', 'max_level'):
+            raw = request.form.get(field, '').strip()
+                if raw != '':
+                    data[field] = int(raw)
+            # Support legacy 'target' field name if template still submits it.
+            if 'target' in request.form and request.form.get('target', '').strip() != '' and 'max_level' not in data:
+                data['max_level'] = int(request.form['target'])    
         except (KeyError,ValueError):
             flash('Item ID is invalid.')
             return redirect(url_for('my_inventory_page',inventory='edit'))
@@ -477,122 +445,68 @@ def create_node_app(bank_id,api_url='http://127.0.0.1:5000',queue_path=None,outa
 
     @app.post('/inventory/add')
     def add_inventory():
-        data={k:request.form.get(k,'') for k in
-            ('name','unit','category','quantity','target','expiration_date')}
+        try:
+            item_id = int(request.form['item_id'])
+            quantity = int(request.form.get('quantity', '0'))
+            min_level = int(request.form.get('min_level', '0'))
+            max_raw = request.form.get('max_level') or request.form.get('target') or '0'
+            max_level = int(max_raw)
+        except (KeyError, ValueError):
+            flash('Error: Item ID, quantity, min level, and max level must be whole numbers.')
+            return redirect(url_for('my_inventory_page', inventory='edit'))
+        payload = {
+            'item_id': item_id,
+            'quantity': quantity,
+            'min_level': min_level,
+            'max_level': max_level,
+        }
         return perform('POST','/api/inventory',data,return_inventory_edit=True)
 
     @app.post('/inventory/<int:item_id>/delete')
     def remove_inventory(item_id):
-        return perform('DELETE',f'/api/inventory/{item_id}',return_inventory_edit=True)
+        if not session.get('token'):
+            return redirect(url_for('login_page'))
+        flash('Error: Removing items is not supported by the central API; set quantity to 0 instead.')
+        params = own_params(request.form)
+        return redirect(url_for('my_inventory_page', inventory='edit', **params))
 
     @app.post('/request')
     def request_transfer():
-        data={k:request.form.get(k,'') for k in
-            ('source_bank_id','item_id','quantity','request_key')}
-        return perform('POST','/api/exchanges',data)
+        try:
+            supplier_raw = request.form.get('supplier_bank_id') or request.form['source_bank_id']
+            req_id = (request.form.get('request_id') or request.form.get('request_key') or '').strip()
+            data = {
+                'supplier_bank_id': int(supplier_raw),
+                'item_id': int(request.form['item_id']),
+                'quantity': int(request.form['quantity']),
+                'request_id': req_id,
+            }
+        except (KeyError, ValueError):
+            flash('Error: Supplier bank, item, and quantity must be valid whole numbers.')
+            return back()
+        return perform('POST','/api/exchanges',data, success_message='Transfer request submitted.'))
 
     @app.post('/exchange/<int:exchange_id>/<action>')
     def change_exchange(exchange_id,action):
         if action not in ('approve','decline','ship','receive','cancel'):
             abort(404)
-        return perform('POST',f'/api/exchanges/{exchange_id}/{action}')
+        return perform('POST',f'/api/exchanges/{exchange_id}/{action}',, success_message=f'Exchange {action}ed.'))
 
     @app.post('/notifications/read')
     def read_notifications():
-        return perform('POST','/api/notifications/read')
-
-    @app.post('/admin/bank')
-    def add_bank():
-        payload={k:request.form.get(k,'') for k in
-            ('name','area','latitude','longitude','staff_password')}
-        return perform('POST','/api/admin/banks',payload,
-                       admin_anchor='banks' if request.form.get('return_to')=='admin' else None)
-
-    @app.post('/admin/user')
-    def add_user():
-        payload={k:request.form.get(k,'') for k in
-            ('bank_id','username','password','role')}
-        return perform('POST','/api/admin/users',payload,
-                       admin_anchor='users' if request.form.get('return_to')=='admin' else None)
-
-    @app.post('/donation')
-    def record_donation():
-        fields=('item_id','quantity','donor','donor_id','lot_code','expiration_date')
-        return perform('POST','/api/donations',{k:request.form.get(k,'') for k in fields})
-
-    @app.post('/waste')
-    def record_waste():
-        fields=('item_id','quantity','reason','lot_id')
-        return perform('POST','/api/waste',{k:request.form.get(k,'') for k in fields})
-
-    @app.post('/lot/<int:lot_id>/expiry')
-    def set_lot_expiry(lot_id):
-        # The dashboard form posts to /lot/0/expiry and sends the batch ID as lot_id_entry;
-        # a small script rewrites the URL, but this keeps the form working without JavaScript.
-        if lot_id==0:
-            entry=request.form.get('lot_id_entry','').strip()
-            if not entry.isdigit() or int(entry)<1:
-                flash('Error: Enter a valid batch ID.')
-                return back()
-            lot_id=int(entry)
-        return perform('PATCH',f'/api/lots/{lot_id}',{'expiration_date':request.form.get('expiration_date','')})
-
-    @app.post('/exchange/<int:exchange_id>/schedule')
-    def set_schedule(exchange_id):
-        # The basic HTML form asks for UTC explicitly.
-        payload={}
-        for key in ('pickup_at','delivery_at'):
-            value=request.form.get(key,'')
-            payload[key]=value+'+00:00' if value else ''
-        payload['carrier_notes']=request.form.get('carrier_notes','')
-        return perform('PUT',f'/api/exchanges/{exchange_id}/schedule',payload)
-
-    @app.post('/barcode')
-    def update_barcode():
-        try:item_id=int(request.form.get('item_id',''))
-        except ValueError:
-            flash('Invalid item ID.');return back()
-        return perform('PUT',f'/api/admin/items/{item_id}/barcode',{'barcode':request.form.get('barcode','')})
-
-    @app.get('/barcode/lookup')
-    def lookup_barcode():
-        if not session.get('token'):return redirect(url_for('login_page'))
-        import urllib.parse
-        barcode=request.args.get('barcode','').strip()
+        if not session.get('token'):
+            return redirect(url_for('login_page'))
         try:
-            result=call('GET','/api/barcodes/'+urllib.parse.quote(barcode,safe=''))
-            item=result['item']
-            flash(f'Barcode {barcode}: {item["name"]} ({item["unit"]}).')
-        except APIError as exc:flash('Barcode lookup: '+str(exc))
+            result = call('POST', '/api/notifications/read-all')
+            flash(f"Marked {result.get('marked', 0)} notifications as read.")
+        except APIError as exc:
+            if exc.status == 401:
+                session.clear()
+                flash('Session expired.')
+                return redirect(url_for('login_page'))
+            flash('Error: ' + str(exc))
         return back()
-
-    @app.get('/csv/export')
-    def csv_export():
-        if not session.get('token'):return redirect(url_for('login_page'))
-        if app.config['SIMULATED_API_OFFLINE']:
-            flash('Export is unavailable offline.');return back()
-        req=Request(app.config['API_URL']+'/api/inventory/export.csv',
-                    headers={'Authorization':'Bearer '+session['token']})
-        try:
-            with urlopen(req,timeout=5) as response:
-                content=response.read()
-            return Response(content,mimetype='text/csv',headers={
-                'Content-Disposition':'attachment; filename="food_bank_inventory.csv"',
-                'Cache-Control':'no-store'})
-        except (HTTPError,URLError,TimeoutError) as exc:
-            flash('Could not export CSV: '+str(exc));return back()
-
-    @app.post('/csv/import')
-    def csv_import():
-        if not session.get('token'):return redirect(url_for('login_page'))
-        file=request.files.get('inventory_csv')
-        if not file:
-            flash('Choose a CSV file first.');return back()
-        data=file.stream.read(131073)
-        if len(data)>131072:
-            flash('CSV is too large.');return back()
-        return perform('POST','/api/inventory/import.csv',data)
-
+   
     @app.post('/offline/simulate')
     def simulate_offline():
         # Classroom demo control only: admin, demo mode, and a request from this computer.
@@ -630,224 +544,6 @@ def create_node_app(bank_id,api_url='http://127.0.0.1:5000',queue_path=None,outa
         deleted=discard(app.config['OFFLINE_DB'],row_id)
         flash('Queued adjustment discarded.' if deleted else 'Pending change not found.')
         return back()
-
-    def advanced_perform(method,route,payload):
-        if not session.get('token'):return redirect(url_for('login_page'))
-        try:
-            result=call(method,route,payload)
-            flash(result.get('message','Saved.'))
-        except APIError as exc:
-            flash('Error: '+str(exc))
-        return back('advanced_page')
-
-    @app.post('/advanced/action/<action>')
-    def advanced_action(action):
-        # Fixed allowlist prevents arbitrary backend requests from the browser.
-        actions={
-          'donor':('POST','/api/donors',('name','notes')),
-          'recall':('POST','/api/admin/recalls',('item_id','lot_code','reason')),
-          'storage':('PUT','/api/storage/'+request.form.get('storage_type',''),('capacity_units',)),
-          'item_storage':('PUT','/api/admin/items/'+request.form.get('item_id','')+'/storage',('storage_type',)),
-          'count':('POST','/api/reconciliations',('item_id','counted_qty','reason')),
-          'driver':('POST','/api/drivers',('display_name',)),
-          'vehicle':('POST','/api/vehicles',('label','capacity_units','refrigerated')),
-          'transport':('PUT','/api/exchanges/'+request.form.get('exchange_id','')+'/transport',('driver_id','vehicle_id')),
-          'receipt':('POST','/api/exchanges/'+request.form.get('exchange_id','')+'/receive-detailed',('received_qty','damaged_qty','notes')),
-        }
-        if action not in actions:abort(404)
-        if action=='storage' and request.form.get('storage_type','') not in ('ambient','refrigerated','frozen'):
-            flash('Error: Choose ambient, refrigerated or frozen storage.');return back('advanced_page')
-        method,route,fields=actions[action]
-        if action in ('item_storage','transport','receipt'):
-            import re
-            if not re.fullmatch(r'[1-9][0-9]{0,8}',request.form.get('item_id' if action=='item_storage' else 'exchange_id','')):
-                flash('Invalid ID.');return back('advanced_page')
-        return advanced_perform(method,route,{k:request.form.get(k,'') for k in fields})
-
-    @app.post('/advanced/recall/<int:recall_id>/close')
-    def advanced_close_recall(recall_id):
-        return advanced_perform('POST',f'/api/admin/recalls/{recall_id}/close',{})
-
-    @app.post('/advanced/count/<int:recon_id>/<action>')
-    def advanced_count_action(recon_id,action):
-        if action not in ('apply','reject'):abort(404)
-        return advanced_perform('POST',f'/api/reconciliations/{recon_id}/{action}',{})
-
-    @app.post('/advanced/discrepancy/<int:issue_id>/review')
-    def advanced_discrepancy(issue_id):
-        return advanced_perform('POST',f'/api/discrepancies/{issue_id}/review',{})
-
-    @app.post('/advanced/receipt/queue')
-    def advanced_queue_receipt():
-        if not session.get('token'):return redirect(url_for('login_page'))
-        try:
-            enqueue_receipt(app.config['OFFLINE_DB'],request.form.get('item_id'),
-                request.form.get('quantity'),request.form.get('donor'),request.form.get('expiration_date'))
-            flash('Independent receipt queued safely on this node.')
-        except ValueError as exc:flash('Queue error: '+str(exc))
-        return back('advanced_page')
-
-    @app.post('/advanced/receipt/sync')
-    def advanced_sync_receipts():
-        if not session.get('token'):return redirect(url_for('login_page'))
-        result=sync_receipts(app.config['OFFLINE_DB'],call)
-        flash('Receipt sync: {} synchronized; {} conflicts. {}'.format(
-              result['synced'],result['conflicts'],result['error'] or ''))
-        return back('advanced_page')
-
-    @app.post('/advanced/receipt/<int:receipt_id>/discard')
-    def advanced_discard_receipt(receipt_id):
-        if not session.get('token'):return redirect(url_for('login_page'))
-        discard_receipt(app.config['OFFLINE_DB'],receipt_id)
-        flash('Local receipt discarded.');return back('advanced_page')
-
-    def status_context(trace=None,trace_error=None):
-        """Data for the System status page. Health checks are shown to everyone; the
-        system-wide summary is admin only (the API enforces this too)."""
-        data,error=None,None
-        if session.get('role')=='admin':
-            try:data=call('GET','/api/admin/system/status')
-            except APIError as exc:error=str(exc)
-        try:
-            api_health=call('GET','/api/health').get('status')
-        except APIError as exc:
-            api_health='unreachable: '+str(exc)
-        nodes=[]
-        if not str(api_health).startswith('unreachable'):
-            try:nodes=call('GET','/api/nodes').get('nodes',[])
-            except APIError:nodes=[]
-        events=[]
-        if not str(api_health).startswith('unreachable'):
-            try:events=call('GET','/api/events').get('events',[])[:25]
-            except APIError:events=[]
-        return dict(status=data,error=error,api_health=api_health,nodes=nodes,central_events=events,
-            simulated=app.config['SIMULATED_API_OFFLINE'],
-            node_events=local_events(app.config['OFFLINE_DB'])[:25],
-            queue_count=sum(x['status'] in ('pending','conflict') for x in all_queue(app.config['OFFLINE_DB'])),
-            receipt_count=sum(x['status'] in ('pending','conflict') for x in all_receipts(app.config['OFFLINE_DB'])),
-            trace=trace,trace_error=trace_error,user=current_user())
-
-    @app.get('/project-status')
-    def project_status():
-        if not session.get('token'):
-            return redirect(url_for('login_page'))
-        return render_template('project_status.html',**status_context())
-
-    @app.get('/project-trace')
-    def project_trace():
-        if not session.get('token'):
-            return redirect(url_for('login_page'))
-        import re
-        trace_id=request.args.get('id','')
-        trace=None;trace_error=None
-        if not re.fullmatch(r'[A-Za-z0-9_-]{8,80}',trace_id):
-            trace_error='Enter a valid request ID (8-80 letters, numbers, hyphens or underscores).'
-        else:
-            try:trace=call('GET','/api/traces/'+trace_id)
-            except APIError as exc:trace_error=str(exc)
-        return render_template('project_status.html',**status_context(trace,trace_error))
-
-    @app.post('/advanced/lab')
-    def advanced_run_lab():
-        if not session.get('token'):return redirect(url_for('login_page'))
-        try:
-            result=call('POST','/api/admin/lab/run',{'scenario':request.form.get('scenario','all')})
-            session['last_lab']=result
-            flash('Isolated test lab: {}/{} passed.'.format(result['passed'],result['total']))
-        except APIError as exc:flash('Lab error: '+str(exc))
-        return back('advanced_page')
-
-    # ------------------------------------------------------------------ Database Administration page
-    # Plain HTML front end for /api/admin/*. The central API enforces
-    # admin-only access; the node check below only avoids showing an empty page.
-    def admin_guard():
-        if not session.get('token'):
-            return redirect(url_for('login_page'))
-        if session.get('role')!='admin':
-            return render_template('admin.html',denied=True),403
-        return None
-
-    @app.get('/admin')
-    def admin_page():
-        blocked=admin_guard()
-        if blocked:return blocked
-        import urllib.parse
-        args=request.args
-        bank_q=args.get('bank_q','').strip()[:80]
-        user_filters={k:args.get(k,'').strip()[:80] for k in ('q','bank_id','role','active')}
-        data={};errors={}
-        fetch=[('overview','/api/admin/overview'),
-               ('banks','/api/admin/banks?'+urllib.parse.urlencode({'q':bank_q})),
-               ('users','/api/admin/users?'+urllib.parse.urlencode({k:v for k,v in user_filters.items() if v})),
-               ('backups','/api/admin/backups'),
-               ('audit','/api/admin/audit')]
-        if args.get('health')=='1':
-            fetch.append(('health','/api/admin/health'))
-        for key,route in fetch:
-            try:
-                data[key]=call('GET',route)
-            except APIError as exc:
-                if exc.status==401:
-                    session.clear();flash('Session expired. Log in again.')
-                    return redirect(url_for('login_page'))
-                if exc.status==403:
-                    return render_template('admin.html',denied=True),403
-                errors[key]=str(exc)
-        return render_template('admin.html',denied=False,data=data,errors=errors,
-                               bank_q=bank_q,user_filters=user_filters,
-                               roles=('staff','viewer','driver','dispatcher','manager','admin'),
-                               restore=session.pop('last_restore',None),
-                               this_user=session.get('username'))
-
-    def admin_perform(method,route,payload,anchor):
-        blocked=admin_guard()
-        if blocked:return blocked
-        return perform(method,route,payload,admin_anchor=anchor)
-
-    @app.post('/admin/banks/<int:target_id>/update')
-    def admin_update_bank(target_id):
-        form=request.form
-        payload={k:form.get(k,'').strip() for k in ('name','area') if form.get(k,'').strip()}
-        if form.get('latitude','').strip() or form.get('longitude','').strip():
-            payload.update(latitude=form.get('latitude',''),longitude=form.get('longitude',''))
-        return admin_perform('PUT',f'/api/admin/banks/{target_id}',payload,'banks')
-
-    @app.post('/admin/banks/<int:target_id>/delete')
-    def admin_delete_bank(target_id):
-        return admin_perform('DELETE',f'/api/admin/banks/{target_id}',
-                             {'confirm_name':request.form.get('confirm_name','')},'banks')
-
-    @app.post('/admin/users/<int:user_id>/update')
-    def admin_update_user(user_id):
-        form=request.form
-        payload={k:form.get(k,'') for k in ('role','bank_id','confirm_username') if form.get(k,'')}
-        return admin_perform('PUT',f'/api/admin/users/{user_id}',payload,'users')
-
-    @app.post('/admin/users/<int:user_id>/<action>')
-    def admin_user_active(user_id,action):
-        if action not in ('disable','enable'):abort(404)
-        payload={k:request.form.get(k,'') for k in ('confirm_username','reason')}
-        return admin_perform('POST',f'/api/admin/users/{user_id}/{action}',payload,'users')
-
-    @app.post('/admin/backups')
-    def admin_create_backup():
-        return admin_perform('POST','/api/admin/backups',{'note':request.form.get('note','')},'backups')
-
-    @app.post('/admin/backups/<int:backup_id>/verify-restore')
-    def admin_verify_restore(backup_id):
-        blocked=admin_guard()
-        if blocked:return blocked
-        try:
-            result=call('POST',f'/api/admin/backups/{backup_id}/verify-restore',{})
-            flash(result.get('message','Verification finished.'))
-            # Small summary only (session cookie size limit).
-            session['last_restore']={'backup_id':backup_id,'passed':result['passed'],
-                'steps':[{'step':s['step'],'passed':s['passed']} for s in result['steps']]}
-        except APIError as exc:
-            if exc.status==401:
-                session.clear();flash('Session expired.');return redirect(url_for('login_page'))
-            flash('Error: '+str(exc))
-        return redirect(url_for('admin_page',_anchor='backups'))
 
     @app.after_request
     def security_headers(response):
