@@ -87,13 +87,3 @@ def login_required(view):
         g.token = token
         return view(*args, **kwargs)
     return wrapper
-
-
-def admin_required(view):
-    @wraps(view)
-    @login_required
-    def wrapper(*args, **kwargs):
-        if g.user['role'] != 'admin':
-            raise APIError('admin role required', 403)
-        return view(*args, **kwargs)
-    return wrapper
